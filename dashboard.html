@@ -1,14 +1,28 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>License Plate Detection Dashboard</title>
+    <title>Dashboard LPR</title>
     <style>
+      /* (TOÀN BỘ CSS giống y hệt như file bạn gửi) */
       * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
+      }
+
+      :root {
+        --primary: #667eea;
+        --primary-dark: #5568d3;
+        --danger: #ff4757;
+        --success: #2ecc71;
+        --warning: #ffa502;
+        --info: #3498db;
+        --dark: #2c3e50;
+        --light: #f8f9fa;
+        --shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.2);
       }
 
       body {
@@ -19,200 +33,69 @@
       }
 
       .container {
-        max-width: 1400px;
+        max-width: 1600px;
         margin: 0 auto;
       }
 
+      /* ==================== HEADER ==================== */
       .header {
         background: white;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        padding: 30px;
+        border-radius: 20px;
+        box-shadow: var(--shadow-lg);
         margin-bottom: 30px;
-        text-align: center;
+        animation: slideDown 0.5s ease;
+      }
+
+      @keyframes slideDown {
+        from {
+          opacity: 0;
+          transform: translateY(-30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .header-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 20px;
       }
 
       .header h1 {
-        color: #667eea;
+        color: var(--primary);
         font-size: 2.5em;
-        margin-bottom: 10px;
-      }
-
-      .stats-container {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 20px;
-        margin-bottom: 30px;
-      }
-
-      .stat-card {
-        background: white;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        text-align: center;
-        transition: transform 0.3s;
-      }
-
-      .stat-card:hover {
-        transform: translateY(-5px);
-      }
-
-      .stat-value {
-        font-size: 2.5em;
-        font-weight: bold;
-        color: #667eea;
-        margin: 10px 0;
-      }
-
-      .stat-label {
-        color: #666;
-        font-size: 1.1em;
-      }
-
-      .controls {
-        background: white;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        margin-bottom: 30px;
         display: flex;
-        gap: 15px;
-        flex-wrap: wrap;
         align-items: center;
+        gap: 15px;
       }
 
-      .search-box {
-        flex: 1;
-        min-width: 250px;
-        padding: 12px 20px;
-        border: 2px solid #ddd;
-        border-radius: 25px;
-        font-size: 1em;
-        transition: border-color 0.3s;
-      }
-
-      .search-box:focus {
-        outline: none;
-        border-color: #667eea;
-      }
-
-      button {
-        padding: 12px 25px;
-        background: #667eea;
+      .live-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--success);
         color: white;
-        border: none;
-        border-radius: 25px;
-        font-size: 1em;
-        cursor: pointer;
-        transition: background 0.3s;
-      }
-
-      button:hover {
-        background: #5568d3;
-      }
-
-      button:active {
-        transform: scale(0.95);
-      }
-
-      .plates-container {
-        background: white;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-      }
-
-      .plate-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-        gap: 20px;
-        margin-top: 20px;
-      }
-
-      .plate-card {
-        border: 2px solid #eee;
-        padding: 20px;
-        border-radius: 12px;
-        transition: all 0.3s;
-        background: #f9f9f9;
-      }
-
-      .plate-card:hover {
-        border-color: #667eea;
-        transform: translateY(-3px);
-        box-shadow: 0 5px 20px rgba(102, 126, 234, 0.2);
-      }
-
-      .plate-number {
-        font-size: 1.8em;
-        font-weight: bold;
-        color: #333;
-        margin-bottom: 15px;
-        padding: 10px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 8px;
-        text-align: center;
-        letter-spacing: 2px;
-      }
-
-      .plate-info {
+        padding: 8px 16px;
+        border-radius: 20px;
         font-size: 0.9em;
-        color: #666;
-        margin: 8px 0;
-        display: flex;
-        justify-content: space-between;
-      }
-
-      .plate-info strong {
-        color: #333;
-      }
-
-      .plate-image {
-        width: 100%;
-        height: 120px;
-        object-fit: cover;
-        border-radius: 8px;
-        margin-top: 15px;
-        border: 2px solid #eee;
-      }
-
-      .loading {
-        text-align: center;
-        padding: 40px;
-        color: #667eea;
-        font-size: 1.2em;
-      }
-
-      .error {
-        background: #ff4757;
-        color: white;
-        padding: 15px;
-        border-radius: 8px;
-        text-align: center;
-        margin: 20px 0;
-      }
-
-      .refresh-btn {
-        background: #2ecc71;
-      }
-
-      .refresh-btn:hover {
-        background: #27ae60;
-      }
-
-      .auto-refresh-indicator {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        background: #2ecc71;
-        border-radius: 50%;
-        margin-left: 10px;
         animation: pulse 2s infinite;
       }
 
-      @keyframes pulse {
+      .live-dot {
+        width: 10px;
+        height: 10px;
+        background: white;
+        border-radius: 50%;
+        animation: blink 1s infinite;
+      }
+
+      @keyframes blink {
         0%,
         100% {
           opacity: 1;
@@ -222,212 +105,1173 @@
         }
       }
 
-      .no-data {
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.05);
+        }
+      }
+
+      .tabs {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .tab {
+        padding: 12px 25px;
+        background: var(--light);
+        border: 2px solid transparent;
+        border-radius: 12px;
+        cursor: pointer;
+        font-size: 1em;
+        transition: all 0.3s;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .tab:hover {
+        background: #e8e9eb;
+        transform: translateY(-2px);
+      }
+
+      .tab.active {
+        background: var(--primary);
+        color: white;
+        box-shadow: var(--shadow);
+      }
+
+      /* ==================== STATS CARDS ==================== */
+      .stats-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+
+      .stat-card {
+        background: white;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: var(--shadow);
+        transition: all 0.3s;
+        position: relative;
+        overflow: hidden;
+        animation: fadeInUp 0.5s ease;
+      }
+
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: var(--shadow-lg);
+      }
+
+      .stat-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        background: linear-gradient(90deg, var(--primary), var(--info));
+      }
+
+      .stat-icon {
+        font-size: 2.5em;
+        margin-bottom: 10px;
+      }
+
+      .stat-value {
+        font-size: 2.5em;
+        font-weight: bold;
+        color: var(--primary);
+        margin: 10px 0;
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+      }
+
+      .stat-change {
+        font-size: 0.4em;
+        color: var(--success);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .stat-label {
+        color: #666;
+        font-size: 1em;
+        font-weight: 500;
+      }
+
+      .stat-footer {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #eee;
+        font-size: 0.85em;
+        color: #999;
+      }
+
+      /* ==================== SECTIONS ==================== */
+      .section {
+        background: white;
+        padding: 30px;
+        border-radius: 20px;
+        box-shadow: var(--shadow);
+        margin-bottom: 30px;
+        display: none;
+        animation: fadeIn 0.3s ease;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      .section.active {
+        display: block;
+      }
+
+      .section h2 {
+        color: var(--primary);
+        margin-bottom: 25px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 1.8em;
+        padding-bottom: 15px;
+        border-bottom: 3px solid var(--light);
+      }
+
+      /* ==================== CONTROLS ==================== */
+      .controls {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        margin-bottom: 25px;
+        padding: 20px;
+        background: var(--light);
+        border-radius: 15px;
+      }
+
+      .search-box {
+        flex: 1;
+        min-width: 250px;
+        padding: 14px 20px;
+        border: 2px solid #ddd;
+        border-radius: 12px;
+        font-size: 1em;
+        transition: all 0.3s;
+      }
+
+      .search-box:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      }
+
+      button {
+        padding: 14px 28px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 1em;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      button:hover {
+        background: var(--primary-dark);
+        transform: translateY(-2px);
+        box-shadow: var(--shadow);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      button.danger {
+        background: var(--danger);
+      }
+
+      button.danger:hover {
+        background: #ff3838;
+      }
+
+      button.success {
+        background: var(--success);
+      }
+
+      button.success:hover {
+        background: #27ae60;
+      }
+
+      button.warning {
+        background: var(--warning);
+      }
+
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      /* ==================== PLATE CARDS ==================== */
+      .plate-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 25px;
+      }
+
+      .plate-card {
+        border: 2px solid #eee;
+        padding: 25px;
+        border-radius: 15px;
+        background: white;
+        transition: all 0.3s;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .plate-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: var(--success);
+        transition: width 0.3s;
+      }
+
+      .plate-card:hover {
+        transform: translateY(-5px);
+        box-shadow: var(--shadow-lg);
+        border-color: var(--primary);
+      }
+
+      .plate-card:hover::before {
+        width: 100%;
+        opacity: 0.1;
+      }
+
+      .plate-card.watchlist {
+        border-color: var(--danger);
+        background: linear-gradient(135deg, #fff 0%, #fff5f5 100%);
+      }
+
+      .plate-card.watchlist::before {
+        background: var(--danger);
+      }
+
+      .plate-number {
+        font-size: 2em;
+        font-weight: bold;
+        padding: 15px;
+        background: linear-gradient(135deg, var(--primary) 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        text-align: center;
+        letter-spacing: 3px;
+        margin-bottom: 20px;
+        box-shadow: var(--shadow);
+        text-transform: uppercase;
+      }
+
+      .plate-number.watchlist {
+        background: linear-gradient(135deg, var(--danger) 0%, #ff6b81 100%);
+        animation: alertPulse 2s infinite;
+      }
+
+      @keyframes alertPulse {
+        0%,
+        100% {
+          box-shadow: 0 5px 15px rgba(255, 71, 87, 0.3);
+        }
+        50% {
+          box-shadow: 0 5px 30px rgba(255, 71, 87, 0.6);
+        }
+      }
+
+      .plate-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 0.95em;
+      }
+
+      .plate-info:last-of-type {
+        border-bottom: none;
+      }
+
+      .plate-info strong {
+        color: var(--dark);
+        font-weight: 600;
+      }
+
+      .plate-info span:last-child {
+        color: #666;
+      }
+
+      .plate-image {
+        width: 100%;
+        height: 140px;
+        object-fit: cover;
+        border-radius: 10px;
+        margin: 15px 0;
+        border: 2px solid #eee;
+        transition: all 0.3s;
+      }
+
+      .plate-image:hover {
+        transform: scale(1.05);
+        box-shadow: var(--shadow);
+      }
+
+      .plate-actions {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-top: 20px;
+      }
+
+      .plate-actions button {
+        font-size: 0.9em;
+        padding: 10px 15px;
+      }
+
+      .watchlist-badge {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        background: var(--danger);
+        color: white;
+        padding: 8px 15px;
+        border-radius: 20px;
+        font-size: 0.85em;
+        font-weight: bold;
+        box-shadow: var(--shadow);
+        animation: bounce 2s infinite;
+      }
+
+      @keyframes bounce {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-5px);
+        }
+      }
+
+      /* ==================== ALERTS ==================== */
+      .alert-card {
+        background: white;
+        border-left: 5px solid var(--warning);
+        padding: 20px;
+        margin-bottom: 15px;
+        border-radius: 10px;
+        box-shadow: var(--shadow);
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        gap: 20px;
+        transition: all 0.3s;
+      }
+
+      .alert-card:hover {
+        transform: translateX(5px);
+        box-shadow: var(--shadow-lg);
+      }
+
+      .alert-card.danger {
+        background: linear-gradient(135deg, #fff 0%, #fff5f5 100%);
+        border-left-color: var(--danger);
+      }
+
+      .alert-card.warning {
+        border-left-color: var(--warning);
+      }
+
+      .alert-content h4 {
+        color: var(--dark);
+        margin-bottom: 8px;
+        font-size: 1.3em;
+      }
+
+      .alert-content p {
+        color: #666;
+        margin: 5px 0;
+      }
+
+      .alert-content small {
+        color: #999;
+        font-size: 0.85em;
+      }
+
+      /* ==================== MODAL ==================== */
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+        animation: fadeIn 0.3s ease;
+      }
+
+      .modal.active {
+        display: flex;
+      }
+
+      .modal-content {
+        background: white;
+        padding: 40px;
+        border-radius: 20px;
+        max-width: 550px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: slideUp 0.3s ease;
+      }
+
+      @keyframes slideUp {
+        from {
+          opacity: 0;
+          transform: translateY(50px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .modal-content h3 {
+        color: var(--primary);
+        margin-bottom: 25px;
+        font-size: 1.8em;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: var(--dark);
+      }
+
+      .form-group input,
+      .form-group textarea,
+      .form-group select {
+        width: 100%;
+        padding: 12px 15px;
+        border: 2px solid #ddd;
+        border-radius: 10px;
+        font-size: 1em;
+        transition: all 0.3s;
+        font-family: inherit;
+      }
+
+      .form-group input:focus,
+      .form-group textarea:focus,
+      .form-group select:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      }
+
+      .form-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        margin-top: 30px;
+      }
+
+      /* ==================== COMPARISON ==================== */
+      .comparison-result {
+        background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+        border: 2px solid var(--success);
+        padding: 25px;
+        border-radius: 15px;
+        margin-bottom: 25px;
+        box-shadow: var(--shadow);
+      }
+
+      .comparison-result h3 {
+        color: var(--dark);
+        margin-bottom: 15px;
+        font-size: 1.5em;
+      }
+
+      .similarity-bar {
+        height: 40px;
+        background: #e0e0e0;
+        border-radius: 20px;
+        overflow: hidden;
+        margin: 15px 0;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .similarity-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--danger), var(--warning), var(--success));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 1.1em;
+        transition: width 1s ease;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      }
+
+      /* ==================== FILTERS ==================== */
+      .filters {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+
+      .filter-btn {
+        padding: 10px 20px;
+        background: white;
+        border: 2px solid var(--light);
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-weight: 600;
+      }
+
+      .filter-btn:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+
+      .filter-btn.active {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+      }
+
+      /* ==================== LOADING & STATES ==================== */
+      .loading {
         text-align: center;
         padding: 60px;
+        color: var(--primary);
+        font-size: 1.3em;
+      }
+
+      .loading::after {
+        content: "...";
+        animation: dots 1.5s steps(3, end) infinite;
+      }
+
+      @keyframes dots {
+        0%,
+        20% {
+          content: ".";
+        }
+        40% {
+          content: "..";
+        }
+        60%,
+        100% {
+          content: "...";
+        }
+      }
+
+      .error {
+        background: linear-gradient(135deg, var(--danger) 0%, #ff6b81 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 12px;
+        text-align: center;
+        margin: 20px 0;
+        box-shadow: var(--shadow);
+      }
+
+      .no-data {
+        text-align: center;
+        padding: 80px;
         color: #999;
-        font-size: 1.2em;
+        font-size: 1.3em;
+      }
+
+      .no-data::before {
+        content: "📭";
+        display: block;
+        font-size: 4em;
+        margin-bottom: 20px;
+      }
+
+      /* ==================== TOAST NOTIFICATIONS ==================== */
+      .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+      }
+
+      .toast {
+        background: white;
+        padding: 15px 20px;
+        border-radius: 10px;
+        box-shadow: var(--shadow-lg);
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 300px;
+        animation: slideInRight 0.3s ease;
+      }
+
+      @keyframes slideInRight {
+        from {
+          transform: translateX(400px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      .toast.success {
+        border-left: 4px solid var(--success);
+      }
+
+      .toast.error {
+        border-left: 4px solid var(--danger);
+      }
+
+      .toast.warning {
+        border-left: 4px solid var(--warning);
+      }
+
+      /* ==================== PAGINATION ==================== */
+      .pagination {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 30px;
+      }
+
+      .pagination button {
+        padding: 10px 20px;
+        min-width: 45px;
+      }
+
+      .pagination button.active {
+        background: var(--primary-dark);
+      }
+
+      /* ==================== RESPONSIVE ==================== */
+      @media (max-width: 768px) {
+        .header h1 {
+          font-size: 1.8em;
+        }
+
+        .stats-container {
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        }
+
+        .plate-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .controls {
+          flex-direction: column;
+        }
+
+        .search-box {
+          width: 100%;
+        }
+
+        .form-actions {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* ==================== DARK MODE TOGGLE ==================== */
+      .theme-toggle {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        width: 60px;
+        height: 60px;
+        background: white;
+        border-radius: 50%;
+        box-shadow: var(--shadow-lg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 1.5em;
+        transition: all 0.3s;
+        z-index: 999;
+      }
+
+      .theme-toggle:hover {
+        transform: scale(1.1) rotate(20deg);
       }
     </style>
   </head>
   <body>
     <div class="container">
+      <!-- HEADER -->
       <div class="header">
-        <h1>🚗 License Plate Detection Dashboard</h1>
-        <p>Real-time License Plate Recognition System</p>
+        <div class="header-top">
+          <h1>
+            🚗 Dashboard LPR
+            <span class="live-indicator">
+              <span class="live-dot"></span>
+              LIVE
+            </span>
+          </h1>
+          <div style="display: flex; gap: 15px; flex-wrap: wrap">
+            <button onclick="exportData()" style="background: var(--success)">📥 Export</button>
+            <button onclick="showSettings()">⚙️ Cài đặt</button>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" onclick="switchTab('detection')">🔍 Phát hiện</button>
+          <button class="tab" onclick="switchTab('watchlist')">👁️ Watchlist</button>
+          <button class="tab" onclick="switchTab('comparison')">⚖️ So sánh</button>
+          <button class="tab" onclick="switchTab('alerts')">🚨 Cảnh báo</button>
+          <button class="tab" onclick="switchTab('analytics')">📊 Phân tích</button>
+          <button class="tab" onclick="switchTab('management')">🗑️ Quản lý</button>
+        </div>
       </div>
 
+      <!-- STATS CARDS -->
       <div class="stats-container">
-        <div class="stat-card">
-          <div class="stat-label">Tổng số phát hiện</div>
-          <div class="stat-value" id="totalDetections">0</div>
+        <div class="stat-card" style="animation-delay: 0.1s">
+          <div class="stat-icon">🎯</div>
+          <div class="stat-value">
+            <span id="totalDetections">0</span>
+            <span class="stat-change">↑ 12%</span>
+          </div>
+          <div class="stat-label">Tổng phát hiện</div>
+          <div class="stat-footer">Từ đầu tháng</div>
         </div>
-        <div class="stat-card">
+
+        <div class="stat-card" style="animation-delay: 0.2s">
+          <div class="stat-icon">🚙</div>
+          <div class="stat-value">
+            <span id="uniquePlates">0</span>
+          </div>
           <div class="stat-label">Biển số độc nhất</div>
-          <div class="stat-value" id="uniquePlates">0</div>
+          <div class="stat-footer">Không trùng lặp</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Phát hiện hôm nay</div>
-          <div class="stat-value" id="todayCount">0</div>
+
+        <div class="stat-card" style="animation-delay: 0.3s">
+          <div class="stat-icon">📅</div>
+          <div class="stat-value">
+            <span id="todayCount">0</span>
+            <span class="stat-change" style="color: var(--success)">↑ 5</span>
+          </div>
+          <div class="stat-label">Hôm nay</div>
+          <div class="stat-footer" id="currentTime"></div>
+        </div>
+
+        <div class="stat-card" style="animation-delay: 0.4s">
+          <div class="stat-icon">👁️</div>
+          <div class="stat-value">
+            <span id="watchlistCount">0</span>
+          </div>
+          <div class="stat-label">Watchlist</div>
+          <div class="stat-footer">Đang theo dõi</div>
+        </div>
+
+        <div class="stat-card" style="animation-delay: 0.5s">
+          <div class="stat-icon">🚨</div>
+          <div class="stat-value">
+            <span id="alertsCount" style="color: var(--danger)">0</span>
+          </div>
+          <div class="stat-label">Cảnh báo</div>
+          <div class="stat-footer">Chưa xử lý</div>
         </div>
       </div>
 
-      <div class="controls">
-        <input type="text" class="search-box" id="searchBox" placeholder="🔍 Tìm kiếm biển số... (VD: 29A)" />
-        <button onclick="searchPlates()">Tìm kiếm</button>
-        <button class="refresh-btn" onclick="loadAllData()">
-          🔄 Làm mới
-          <span class="auto-refresh-indicator"></span>
-        </button>
-        <button onclick="showRecent()">📋 Gần nhất</button>
+      <!-- TAB: DETECTION -->
+      <div id="detection-section" class="section active">
+        <h2>🔍 Biển số đã phát hiện</h2>
+
+        <div class="controls">
+          <input
+            type="text"
+            class="search-box"
+            id="searchBox"
+            placeholder="🔍 Tìm kiếm biển số... (VD: 29A)"
+            onkeypress="if(event.key==='Enter') searchPlates()"
+          />
+          <button onclick="searchPlates()">🔍 Tìm kiếm</button>
+          <button class="success" onclick="loadDetections()">🔄 Làm mới</button>
+          <button onclick="clearSearch()">❌ Xóa bộ lọc</button>
+        </div>
+
+        <div class="filters">
+          <button class="filter-btn active" onclick="filterDetections('all')">Tất cả</button>
+          <button class="filter-btn" onclick="filterDetections('today')">Hôm nay</button>
+          <button class="filter-btn" onclick="filterDetections('watchlist')">Watchlist</button>
+          <button class="filter-btn" onclick="filterDetections('high-confidence')">Độ tin cậy cao</button>
+        </div>
+
+        <div id="detectionContent">
+          <div class="loading">Đang tải dữ liệu</div>
+        </div>
+
+        <div class="pagination" id="detectionPagination"></div>
       </div>
 
-      <div class="plates-container">
-        <h2>Danh sách biển số đã phát hiện</h2>
-        <div id="platesContent">
-          <div class="loading">⏳ Đang tải dữ liệu...</div>
+      <!-- TAB: WATCHLIST -->
+      <div id="watchlist-section" class="section">
+        <h2>👁️ Danh sách theo dõi</h2>
+
+        <div class="controls">
+          <button onclick="showAddWatchlistModal()">➕ Thêm biển số</button>
+          <button onclick="importWatchlist()">📥 Import từ file</button>
+          <button class="success" onclick="loadWatchlist()">🔄 Làm mới</button>
+          <button class="warning" onclick="exportWatchlist()">📤 Export</button>
         </div>
+
+        <div id="watchlistContent">
+          <div class="loading">Đang tải watchlist</div>
+        </div>
+      </div>
+
+      <!-- TAB: COMPARISON -->
+      <div id="comparison-section" class="section">
+        <h2>⚖️ So sánh biển số</h2>
+
+        <div class="controls">
+          <input
+            type="text"
+            class="search-box"
+            id="compareBox"
+            placeholder="Nhập biển số cần so sánh (VD: 29A-12345)"
+            onkeypress="if(event.key==='Enter') comparePlates()"
+          />
+          <input
+            type="number"
+            id="thresholdBox"
+            value="0.7"
+            step="0.1"
+            min="0"
+            max="1"
+            style="width: 120px; padding: 14px; border: 2px solid #ddd; border-radius: 12px"
+            title="Ngưỡng độ tương đồng (0-1)"
+          />
+          <button onclick="comparePlates()">⚖️ So sánh</button>
+          <button onclick="findAllSimilar()">🔍 Tìm tất cả tương tự</button>
+        </div>
+
+        <div id="comparisonContent">
+          <div class="no-data">Nhập biển số để bắt đầu so sánh</div>
+        </div>
+      </div>
+
+      <!-- TAB: ALERTS -->
+      <div id="alerts-section" class="section">
+        <h2></h2>
       </div>
     </div>
 
+    <!-- =========== JAVASCRIPT: fetch API + render UI =========== -->
     <script>
-      const API_URL = "http://localhost:5000/api";
-      let autoRefreshInterval;
+      // Use current origin if possible (works when served by Flask under same origin),
+      // fallback to http://localhost:5000 for local dev.
+      // const API_BASE = window.location.origin && window.location.origin !== "null" ? window.location.origin : "http://localhost:5000";
+      // Ép trực tiếp tới flask API
+      const API_BASE = "http://localhost:5000";
 
-      // Khởi động tự động làm mới mỗi 5 giây
-      function startAutoRefresh() {
-        autoRefreshInterval = setInterval(() => {
-          loadAllData();
-        }, 5000);
+      /* Generic fetch wrapper */
+      async function fetchJson(url, opts = {}) {
+        try {
+          const res = await fetch(url, opts);
+          if (!res.ok) {
+            const text = await res.text();
+            console.error("Fetch error", url, res.status, text);
+            throw new Error(`HTTP ${res.status}: ${text}`);
+          }
+          return await res.json();
+        } catch (err) {
+          console.error("Network/Fetch failed for", url, err);
+          throw err;
+        }
       }
 
-      // Tải thống kê
+      /* Load statistics and update cards */
       async function loadStats() {
+        const elTotal = document.getElementById("totalDetections");
+        const elUnique = document.getElementById("uniquePlates");
+        const elToday = document.getElementById("todayCount");
+        const elWatch = document.getElementById("watchlistCount");
+        const elAlerts = document.getElementById("alertsCount");
+        const elTime = document.getElementById("currentTime");
+
         try {
-          const response = await fetch(`${API_URL}/stats`);
-          const data = await response.json();
-
-          if (data.success) {
-            document.getElementById("totalDetections").textContent = data.data.total_detections;
-            document.getElementById("uniquePlates").textContent = data.data.unique_plates;
-          }
-        } catch (error) {
-          console.error("Lỗi tải thống kê:", error);
-        }
-      }
-
-      // Tải số lượng hôm nay
-      async function loadTodayStats() {
-        try {
-          const response = await fetch(`${API_URL}/stats/today`);
-          const data = await response.json();
-
-          if (data.success) {
-            document.getElementById("todayCount").textContent = data.count;
-          }
-        } catch (error) {
-          console.error("Lỗi tải thống kê hôm nay:", error);
-        }
-      }
-
-      // Tải danh sách biển số
-      async function loadPlates(endpoint = "/plates/recent?limit=20") {
-        try {
-          const response = await fetch(`${API_URL}${endpoint}`);
-          const data = await response.json();
-
-          if (data.success) {
-            displayPlates(data.data);
+          console.log("Fetching", API_BASE + "/api/stats");
+          const res = await fetchJson(API_BASE + "/api/stats");
+          if (res && res.success && res.data) {
+            const d = res.data;
+            elTotal.textContent = d.total ?? 0;
+            elUnique.textContent = d.unique ?? 0;
+            elToday.textContent = d.today ?? 0;
+            elWatch.textContent = d.watchlist_count ?? 0;
+            elAlerts.textContent = d.alerts_pending ?? 0;
+            elTime.textContent = new Date().toLocaleString();
           } else {
-            showError("Không thể tải dữ liệu");
+            console.warn("Unexpected stats response", res);
           }
-        } catch (error) {
-          showError("Lỗi kết nối API: " + error.message);
+        } catch (e) {
+          console.error("loadStats error", e);
         }
       }
 
-      // Hiển thị biển số
-      function displayPlates(plates) {
-        const container = document.getElementById("platesContent");
+      /* Make a plate card DOM element */
+      function makePlateCard(plate) {
+        const div = document.createElement("div");
+        div.className = "plate-card" + (plate.watchlist ? " watchlist" : "");
+        const imageHtml = plate.id ? `<img src="${API_BASE}/api/image/${plate.id}" class="plate-image" alt="plate image">` : "";
+        div.innerHTML = `
+          ${plate.watchlist ? '<div class="watchlist-badge">WATCHLIST</div>' : ""}
+          <div class="plate-number ${plate.watchlist ? "watchlist" : ""}">${(plate.plate_number || "--").toUpperCase()}</div>
+          <div class="plate-info"><strong>ID:</strong><span>${plate.id ?? ""}</span></div>
+          <div class="plate-info"><strong>Time:</strong><span>${plate.timestamp ?? ""}</span></div>
+          ${imageHtml}
+          <div class="plate-info"><strong>Confidence:</strong><span>${plate.confidence !== undefined ? plate.confidence : "N/A"}</span></div>
+          <div class="plate-actions">
+            <button onclick="viewPlate(${plate.id})">🔎 Xem</button>
+            <button class="danger" onclick="deletePlate(${plate.id})">🗑️ Xóa</button>
+          </div>
+        `;
+        return div;
+      }
 
-        if (plates.length === 0) {
-          container.innerHTML = '<div class="no-data">📭 Chưa có dữ liệu biển số nào</div>';
+      /* Load recent detections and render */
+      async function loadDetections(limit = 20) {
+        const container = document.getElementById("detectionContent");
+        container.innerHTML = '<div class="loading">Đang tải dữ liệu</div>';
+        try {
+          console.log("Fetching", API_BASE + "/api/plates/recent?limit=" + limit);
+          const res = await fetchJson(API_BASE + "/api/plates/recent?limit=" + limit);
+          container.innerHTML = "";
+          if (res && res.success) {
+            if (!res.data || res.count === 0) {
+              container.innerHTML = '<div class="no-data">Không có bản ghi</div>';
+              return;
+            }
+            const grid = document.createElement("div");
+            grid.className = "plate-grid";
+            res.data.forEach((p) => grid.appendChild(makePlateCard(p)));
+            container.appendChild(grid);
+          } else {
+            container.innerHTML = `<div class="error">Lỗi khi tải dữ liệu</div>`;
+            console.warn("Unexpected detections response", res);
+          }
+        } catch (e) {
+          container.innerHTML = `<div class="error">Không thể kết nối đến API: ${e.message}</div>`;
+        }
+      }
+
+      /* Open plate image in new tab */
+      function viewPlate(id) {
+        if (!id) {
+          alert("No image available");
           return;
         }
-
-        container.innerHTML =
-          '<div class="plate-grid">' +
-          plates
-            .map(
-              (plate) => `
-                    <div class="plate-card">
-                        <div class="plate-number">${plate.plate_number}</div>
-                        <div class="plate-info">
-                            <span><strong>Thời gian:</strong></span>
-                            <span>${formatTimestamp(plate.timestamp)}</span>
-                        </div>
-                        <div class="plate-info">
-                            <span><strong>Frame:</strong></span>
-                            <span>${plate.frame_number}</span>
-                        </div>
-                        <div class="plate-info">
-                            <span><strong>Độ tin cậy:</strong></span>
-                            <span>${(plate.confidence * 100).toFixed(1)}%</span>
-                        </div>
-                        ${plate.image_path ? `<img src="${API_URL}/image/${plate.id}" class="plate-image" alt="Plate ${plate.plate_number}">` : ""}
-                    </div>
-                `
-            )
-            .join("") +
-          "</div>";
+        window.open(API_BASE + "/api/image/" + id, "_blank");
       }
 
-      // Format thời gian
-      function formatTimestamp(timestamp) {
-        const date = new Date(timestamp);
-        const now = new Date();
-        const diff = now - date;
-
-        if (diff < 60000) return "Vừa xong";
-        if (diff < 3600000) return Math.floor(diff / 60000) + " phút trước";
-        if (diff < 86400000) return Math.floor(diff / 3600000) + " giờ trước";
-
-        return date.toLocaleString("vi-VN");
+      /* Delete plate */
+      async function deletePlate(id) {
+        if (!confirm("Xác nhận xóa plate id " + id + "?")) return;
+        try {
+          const res = await fetchJson(API_BASE + "/api/plates/" + id + "?reason=deleted_by_ui", { method: "DELETE" });
+          console.log("delete response", res);
+          alert(res.message || "Deleted");
+          await loadStats();
+          await loadDetections();
+        } catch (e) {
+          alert("Xóa thất bại: " + e.message);
+        }
       }
 
-      // Tìm kiếm
-      async function searchPlates() {
-        const query = document.getElementById("searchBox").value.trim();
-
-        if (!query) {
-          loadPlates();
+      /* Search plates */
+      function searchPlates() {
+        const q = document.getElementById("searchBox").value.trim();
+        const container = document.getElementById("detectionContent");
+        if (!q) {
+          loadDetections();
           return;
         }
-
-        document.getElementById("platesContent").innerHTML = '<div class="loading">🔍 Đang tìm kiếm...</div>';
-        await loadPlates(`/plates/search?q=${encodeURIComponent(query)}`);
+        container.innerHTML = '<div class="loading">Đang tìm kiếm</div>';
+        fetchJson(API_BASE + "/api/plates/search?q=" + encodeURIComponent(q))
+          .then((res) => {
+            container.innerHTML = "";
+            if (!res || !res.success) {
+              container.innerHTML = `<div class="error">${res?.message || "Lỗi"}</div>`;
+              return;
+            }
+            if (!res.data || res.count === 0) {
+              container.innerHTML = '<div class="no-data">Không tìm thấy</div>';
+              return;
+            }
+            const grid = document.createElement("div");
+            grid.className = "plate-grid";
+            res.data.forEach((p) => grid.appendChild(makePlateCard(p)));
+            container.appendChild(grid);
+          })
+          .catch((err) => {
+            container.innerHTML = `<div class="error">Lỗi: ${err.message}</div>`;
+          });
       }
 
-      // Hiển thị biển số gần nhất
-      function showRecent() {
+      function clearSearch() {
         document.getElementById("searchBox").value = "";
-        loadPlates();
+        loadDetections();
       }
 
-      // Hiển thị lỗi
-      function showError(message) {
-        document.getElementById("platesContent").innerHTML = `<div class="error">❌ ${message}</div>`;
-      }
-
-      // Tải tất cả dữ liệu
-      function loadAllData() {
-        loadStats();
-        loadTodayStats();
-        loadPlates();
-      }
-
-      // Khởi động khi trang load
-      window.onload = function () {
-        loadAllData();
-        startAutoRefresh();
-
-        // Tìm kiếm khi nhấn Enter
-        document.getElementById("searchBox").addEventListener("keypress", function (e) {
-          if (e.key === "Enter") {
-            searchPlates();
-          }
-        });
-
-        console.log("✅ Dashboard đã sẵn sàng!");
-        console.log("🔄 Tự động làm mới mỗi 5 giây");
-      };
-
-      // Dừng auto-refresh khi rời trang
-      window.onbeforeunload = function () {
-        if (autoRefreshInterval) {
-          clearInterval(autoRefreshInterval);
+      /* Filters (basic stub — expand as needed) */
+      function filterDetections(mode) {
+        // simple client-side behavior for demo
+        document.querySelectorAll(".filter-btn").forEach((b) => b.classList.remove("active"));
+        event?.target?.classList?.add("active");
+        if (mode === "today") {
+          // call the /api/stats/today endpoint for today's records
+          const container = document.getElementById("detectionContent");
+          container.innerHTML = '<div class="loading">Đang tải dữ liệu hôm nay</div>';
+          fetchJson(API_BASE + "/api/stats/today")
+            .then((res) => {
+              container.innerHTML = "";
+              if (!res || !res.success) {
+                container.innerHTML = '<div class="error">Lỗi</div>';
+                return;
+              }
+              if (!res.data || res.count === 0) {
+                container.innerHTML = '<div class="no-data">Không có bản ghi hôm nay</div>';
+                return;
+              }
+              const grid = document.createElement("div");
+              grid.className = "plate-grid";
+              res.data.forEach((p) => grid.appendChild(makePlateCard(p)));
+              container.appendChild(grid);
+            })
+            .catch((e) => {
+              container.innerHTML = `<div class="error">Lỗi: ${e.message}</div>`;
+            });
+        } else if (mode === "watchlist") {
+          const container = document.getElementById("detectionContent");
+          container.innerHTML = '<div class="loading">Đang tải watchlist</div>';
+          fetchJson(API_BASE + "/api/watchlist")
+            .then((res) => {
+              container.innerHTML = "";
+              if (!res || !res.success) {
+                container.innerHTML = '<div class="error">Lỗi</div>';
+                return;
+              }
+              if (!res.data || res.count === 0) {
+                container.innerHTML = '<div class="no-data">Không có watchlist</div>';
+                return;
+              }
+              const grid = document.createElement("div");
+              grid.className = "plate-grid";
+              res.data.forEach((p) => grid.appendChild(makePlateCard(p)));
+              container.appendChild(grid);
+            })
+            .catch((e) => {
+              container.innerHTML = `<div class="error">Lỗi: ${e.message}</div>`;
+            });
+        } else {
+          loadDetections();
         }
-      };
+      }
+
+      /* Small stubs for other UI buttons (so clicking không lỗi) */
+      function exportData() {
+        alert("Export chưa triển khai (demo).");
+      }
+      function showSettings() {
+        alert("Cài đặt chưa triển khai (demo).");
+      }
+      function showAddWatchlistModal() {
+        alert("Thêm watchlist (chưa triển khai).");
+      }
+      function importWatchlist() {
+        alert("Import watchlist (chưa triển khai).");
+      }
+      function loadWatchlist() {
+        alert("Load watchlist (chưa triển khai).");
+      }
+      function exportWatchlist() {
+        alert("Export watchlist (chưa triển khai).");
+      }
+      function comparePlates() {
+        alert("So sánh (chưa triển khai).");
+      }
+      function findAllSimilar() {
+        alert("Tìm tương tự (chưa triển khai).");
+      }
+
+      /* Tab switch (simple) */
+      function switchTab(tab) {
+        document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+        document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
+        document.querySelector(`.tab[onclick*="${tab}"]`)?.classList?.add("active");
+        document.getElementById(tab + "-section")?.classList?.add("active");
+        // load relevant data
+        if (tab === "detection") loadDetections();
+        if (tab === "watchlist") loadWatchlist();
+      }
+
+      /* Initial load */
+      document.addEventListener("DOMContentLoaded", () => {
+        console.log("Dashboard script loaded, initializing...");
+        loadStats();
+        loadDetections();
+        setInterval(loadStats, 30_000); // refresh stats every 30s
+      });
     </script>
+
+    <!-- end -->
   </body>
 </html>
