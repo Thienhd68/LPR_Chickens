@@ -367,6 +367,10 @@
         height: 100%;
         background: var(--success);
         transition: width 0.3s;
+<<<<<<< HEAD
+=======
+        pointer-events: none;
+>>>>>>> 17c858e23e5a924344be3a9463c1f3890544ef33
       }
 
       .plate-card:hover {
@@ -1078,7 +1082,13 @@
           <div class="plate-info"><strong>ID:</strong><span>${plate.id ?? ""}</span></div>
           <div class="plate-info"><strong>Time:</strong><span>${plate.timestamp ?? ""}</span></div>
           ${imageHtml}
+<<<<<<< HEAD
           <div class="plate-info"><strong>Confidence:</strong><span>${plate.confidence !== undefined ? plate.confidence : "N/A"}</span></div>
+=======
+          <div class="plate-info"><strong>Confidence:</strong><span>${
+            plate.confidence !== undefined ? (plate.confidence * 100).toFixed(0) + "%" : "N/A"
+          }</span></div>
+>>>>>>> 17c858e23e5a924344be3a9463c1f3890544ef33
           <div class="plate-actions">
             <button onclick="viewPlate(${plate.id})">🔎 Xem</button>
             <button class="danger" onclick="deletePlate(${plate.id})">🗑️ Xóa</button>
