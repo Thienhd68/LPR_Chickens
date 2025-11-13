@@ -2,279 +2,528 @@ from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 import sqlite3
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
+import sys
+
+# Import database manager
+sys.path.append(os.path.dirname(__file__))
+try:
+    from database_manager import AdvancedLicensePlateDB
+    db = AdvancedLicensePlateDB()
+    print("✅ Database manager loaded successfully")
+except ImportError as e:
+    print(f"⚠️  Warning: Could not load database_manager: {e}")
+    print("   API will run with basic functionality only")
+    db = None
 
 app = Flask(__name__)
-CORS(app)  # Cho phép frontend truy cập từ domain khác
 
-DB_PATH = 'license_plates.db'
+# CRITICAL: Enable CORS for all routes
+CORS(app, resources={
+    r"/api/*": {
+        "origins": "*",  # Allow all origins (or specify: ["http://localhost:8000"])
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 
-# ===================== HELPER FUNCTIONS =====================
+# ==================== HELPER FUNCTIONS ====================
 def get_db_connection():
-    """Tạo kết nối database"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # Trả về dict thay vì tuple
+    """Create database connection"""
+    db_path = 'license_plates.db'
+    if not os.path.exists(db_path):
+        print(f"⚠️  Database not found: {db_path}")
+        return None
+    
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
     return conn
 
 def dict_from_row(row):
-    """Chuyển SQLite Row thành dictionary"""
-    return {
-        'id': row['id'],
-        'plate_number': row['plate_number'],
-        'timestamp': row['timestamp'],
-        'frame_number': row['frame_number'],
-        'confidence': row['confidence'],
-        'image_path': row['image_path'],
-        'source': row['source']
-    }
+    """Convert SQLite Row to dictionary"""
+    return dict(row) if hasattr(row, 'keys') else row
 
-# ===================== API ENDPOINTS =====================
-
+# ==================== BASIC ENDPOINTS ====================
 @app.route('/')
 def home():
-    """Trang chủ API"""
+    """API Home"""
     return jsonify({
-        'message': 'License Plate Detection API',
-        'version': '1.0',
+        'status': 'online',
+        'message': 'Advanced License Plate Detection API v2.0',
+        'database': 'connected' if os.path.exists('license_plates.db') else 'not found',
         'endpoints': {
-            'GET /api/plates': 'Lấy danh sách tất cả biển số',
-            'GET /api/plates/recent?limit=10': 'Lấy biển số gần nhất',
-            'GET /api/plates/<id>': 'Lấy thông tin 1 biển số',
-            'GET /api/plates/search?q=29A': 'Tìm kiếm biển số',
-            'GET /api/stats': 'Thống kê tổng quan',
-            'GET /api/stats/today': 'Thống kê hôm nay',
-            'GET /api/image/<id>': 'Lấy ảnh biển số',
-            'DELETE /api/plates/<id>': 'Xóa 1 biển số',
-            'DELETE /api/plates/all': 'Xóa tất cả (cẩn thận!)'
+            'GET /': 'This page',
+            'GET /api/stats': 'Get statistics',
+            'GET /api/plates/recent': 'Get recent plates',
+            'GET /api/plates/search?q=': 'Search plates',
+            'GET /api/watchlist': 'Get watchlist',
+            'GET /api/alerts': 'Get alerts',
         }
     })
 
-@app.route('/api/plates', methods=['GET'])
-def get_all_plates():
-    """Lấy tất cả biển số (có phân trang)"""
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
-    offset = (page - 1) * per_page
-    
-    conn = get_db_connection()
-    
-    # Đếm tổng số
-    total = conn.execute('SELECT COUNT(*) FROM detected_plates').fetchone()[0]
-    
-    # Lấy dữ liệu
-    plates = conn.execute('''
-        SELECT * FROM detected_plates 
-        ORDER BY timestamp DESC 
-        LIMIT ? OFFSET ?
-    ''', (per_page, offset)).fetchall()
-    
-    conn.close()
-    
+@app.route('/api/health')
+def health_check():
+    """Health check endpoint"""
     return jsonify({
-        'success': True,
-        'total': total,
-        'page': page,
-        'per_page': per_page,
-        'total_pages': (total + per_page - 1) // per_page,
-        'data': [dict_from_row(plate) for plate in plates]
+        'status': 'healthy',
+        'database': os.path.exists('license_plates.db'),
+        'timestamp': datetime.now().isoformat()
     })
 
+# ==================== PLATES ENDPOINTS ====================
 @app.route('/api/plates/recent', methods=['GET'])
 def get_recent_plates():
-    """Lấy biển số gần nhất"""
-    limit = request.args.get('limit', 10, type=int)
-    
-    conn = get_db_connection()
-    plates = conn.execute('''
-        SELECT * FROM detected_plates 
-        ORDER BY timestamp DESC 
-        LIMIT ?
-    ''', (limit,)).fetchall()
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'count': len(plates),
-        'data': [dict_from_row(plate) for plate in plates]
-    })
-
-@app.route('/api/plates/<int:plate_id>', methods=['GET'])
-def get_plate_by_id(plate_id):
-    """Lấy thông tin 1 biển số theo ID"""
-    conn = get_db_connection()
-    plate = conn.execute('SELECT * FROM detected_plates WHERE id = ?', (plate_id,)).fetchone()
-    conn.close()
-    
-    if plate is None:
-        return jsonify({'success': False, 'message': 'Không tìm thấy biển số'}), 404
-    
-    return jsonify({
-        'success': True,
-        'data': dict_from_row(plate)
-    })
+    """Get recent plates"""
+    try:
+        limit = request.args.get('limit', 20, type=int)
+        
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': False,
+                'message': 'Database not found. Please run the main program first to create database.',
+                'data': []
+            }), 200  # Return 200 to avoid CORS preflight issues
+        
+        plates = conn.execute('''
+            SELECT * FROM detected_plates 
+            ORDER BY timestamp DESC 
+            LIMIT ?
+        ''', (limit,)).fetchall()
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'count': len(plates),
+            'data': [dict(plate) for plate in plates]
+        })
+    except Exception as e:
+        print(f"❌ Error in get_recent_plates: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e),
+            'data': []
+        }), 200
 
 @app.route('/api/plates/search', methods=['GET'])
 def search_plates():
-    """Tìm kiếm biển số"""
-    query = request.args.get('q', '')
-    
-    if not query:
-        return jsonify({'success': False, 'message': 'Vui lòng nhập từ khóa tìm kiếm'}), 400
-    
-    conn = get_db_connection()
-    plates = conn.execute('''
-        SELECT * FROM detected_plates 
-        WHERE plate_number LIKE ? 
-        ORDER BY timestamp DESC
-    ''', (f'%{query}%',)).fetchall()
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'query': query,
-        'count': len(plates),
-        'data': [dict_from_row(plate) for plate in plates]
-    })
+    """Search plates"""
+    try:
+        query = request.args.get('q', '')
+        
+        if not query:
+            return jsonify({
+                'success': False,
+                'message': 'Please provide search query',
+                'data': []
+            }), 400
+        
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': False,
+                'message': 'Database not found',
+                'data': []
+            }), 200
+        
+        plates = conn.execute('''
+            SELECT * FROM detected_plates 
+            WHERE plate_number LIKE ? 
+            ORDER BY timestamp DESC
+        ''', (f'%{query}%',)).fetchall()
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'query': query,
+            'count': len(plates),
+            'data': [dict(plate) for plate in plates]
+        })
+    except Exception as e:
+        print(f"❌ Error in search_plates: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e),
+            'data': []
+        }), 200
 
+# ==================== STATS ENDPOINTS ====================
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
-    """Thống kê tổng quan"""
-    conn = get_db_connection()
-    
-    total = conn.execute('SELECT COUNT(*) FROM detected_plates').fetchone()[0]
-    unique = conn.execute('SELECT COUNT(DISTINCT plate_number) FROM detected_plates').fetchone()[0]
-    
-    # Top 5 biển số xuất hiện nhiều nhất
-    top_plates = conn.execute('''
-        SELECT plate_number, COUNT(*) as count 
-        FROM detected_plates 
-        GROUP BY plate_number 
-        ORDER BY count DESC 
-        LIMIT 5
-    ''').fetchall()
-    
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'data': {
-            'total_detections': total,
-            'unique_plates': unique,
-            'top_plates': [{'plate': row[0], 'count': row[1]} for row in top_plates]
-        }
-    })
+    """Get statistics"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': True,
+                'data': {
+                    'total': 0,
+                    'unique': 0,
+                    'watchlist_count': 0,
+                    'alerts_pending': 0,
+                    'today': 0,
+                    'top_plates': []
+                }
+            })
+        
+        stats = {}
+        
+        # Total detections
+        stats['total'] = conn.execute('SELECT COUNT(*) FROM detected_plates').fetchone()[0]
+        
+        # Unique plates
+        stats['unique'] = conn.execute('SELECT COUNT(DISTINCT plate_number) FROM detected_plates').fetchone()[0]
+        
+        # Watchlist count
+        try:
+            stats['watchlist_count'] = conn.execute('SELECT COUNT(*) FROM watchlist WHERE active = 1').fetchone()[0]
+        except:
+            stats['watchlist_count'] = 0
+        
+        # Alerts pending
+        try:
+            stats['alerts_pending'] = conn.execute('SELECT COUNT(*) FROM alerts WHERE resolved = 0').fetchone()[0]
+        except:
+            stats['alerts_pending'] = 0
+        
+        # Today's count
+        stats['today'] = conn.execute('''
+            SELECT COUNT(*) FROM detected_plates 
+            WHERE DATE(timestamp) = DATE('now')
+        ''').fetchone()[0]
+        
+        # Top plates
+        top = conn.execute('''
+            SELECT plate_number, COUNT(*) as count 
+            FROM detected_plates 
+            GROUP BY plate_number 
+            ORDER BY count DESC 
+            LIMIT 5
+        ''').fetchall()
+        stats['top_plates'] = [{'plate': row[0], 'count': row[1]} for row in top]
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'data': stats
+        })
+    except Exception as e:
+        print(f"❌ Error in get_stats: {e}")
+        return jsonify({
+            'success': True,
+            'data': {
+                'total': 0,
+                'unique': 0,
+                'watchlist_count': 0,
+                'alerts_pending': 0,
+                'today': 0,
+                'top_plates': []
+            }
+        })
 
 @app.route('/api/stats/today', methods=['GET'])
 def get_today_stats():
-    """Thống kê hôm nay"""
-    today = datetime.now().strftime('%Y-%m-%d')
-    
-    conn = get_db_connection()
-    
-    count = conn.execute('''
-        SELECT COUNT(*) FROM detected_plates 
-        WHERE DATE(timestamp) = ?
-    ''', (today,)).fetchone()[0]
-    
-    plates = conn.execute('''
-        SELECT * FROM detected_plates 
-        WHERE DATE(timestamp) = ?
-        ORDER BY timestamp DESC
-    ''', (today,)).fetchall()
-    
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'date': today,
-        'count': count,
-        'data': [dict_from_row(plate) for plate in plates]
-    })
+    """Get today's statistics"""
+    try:
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': True,
+                'date': today,
+                'count': 0,
+                'data': []
+            })
+        
+        count = conn.execute('''
+            SELECT COUNT(*) FROM detected_plates 
+            WHERE DATE(timestamp) = ?
+        ''', (today,)).fetchone()[0]
+        
+        plates = conn.execute('''
+            SELECT * FROM detected_plates 
+            WHERE DATE(timestamp) = ?
+            ORDER BY timestamp DESC
+        ''', (today,)).fetchall()
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'date': today,
+            'count': count,
+            'data': [dict(plate) for plate in plates]
+        })
+    except Exception as e:
+        print(f"❌ Error in get_today_stats: {e}")
+        return jsonify({
+            'success': True,
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'count': 0,
+            'data': []
+        })
 
+# ==================== WATCHLIST ENDPOINTS ====================
+@app.route('/api/watchlist', methods=['GET'])
+def get_watchlist():
+    """Get watchlist"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': True,
+                'count': 0,
+                'data': []
+            })
+        
+        try:
+            watchlist = conn.execute('SELECT * FROM watchlist WHERE active = 1 ORDER BY added_date DESC').fetchall()
+        except:
+            # Table doesn't exist yet
+            conn.close()
+            return jsonify({
+                'success': True,
+                'count': 0,
+                'data': []
+            })
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'count': len(watchlist),
+            'data': [dict(item) for item in watchlist]
+        })
+    except Exception as e:
+        print(f"❌ Error in get_watchlist: {e}")
+        return jsonify({
+            'success': True,
+            'count': 0,
+            'data': []
+        })
+
+@app.route('/api/watchlist', methods=['POST'])
+def add_watchlist():
+    """Add to watchlist"""
+    try:
+        data = request.get_json()
+        
+        if not data or 'plate_number' not in data:
+            return jsonify({
+                'success': False,
+                'message': 'Missing plate_number'
+            }), 400
+        
+        if db:
+            success, result = db.add_to_watchlist(
+                data['plate_number'],
+                data.get('reason', ''),
+                data.get('alert_type', 'warning')
+            )
+            
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': 'Added to watchlist',
+                    'watchlist_id': result
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': result
+                }), 400
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Database manager not available'
+            }), 500
+    except Exception as e:
+        print(f"❌ Error in add_watchlist: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/watchlist/<plate_number>', methods=['DELETE'])
+def remove_watchlist(plate_number):
+    """Remove from watchlist"""
+    try:
+        if db:
+            success = db.remove_from_watchlist(plate_number)
+            
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': f'Removed {plate_number} from watchlist'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': 'Not found in watchlist'
+                }), 404
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Database manager not available'
+            }), 500
+    except Exception as e:
+        print(f"❌ Error in remove_watchlist: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+# ==================== ALERTS ENDPOINTS ====================
+@app.route('/api/alerts', methods=['GET'])
+def get_alerts():
+    """Get alerts"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': True,
+                'count': 0,
+                'data': []
+            })
+        
+        try:
+            alerts = conn.execute('SELECT * FROM alerts WHERE resolved = 0 ORDER BY timestamp DESC').fetchall()
+        except:
+            conn.close()
+            return jsonify({
+                'success': True,
+                'count': 0,
+                'data': []
+            })
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'count': len(alerts),
+            'data': [dict(alert) for alert in alerts]
+        })
+    except Exception as e:
+        print(f"❌ Error in get_alerts: {e}")
+        return jsonify({
+            'success': True,
+            'count': 0,
+            'data': []
+        })
+
+# ==================== IMAGE ENDPOINT ====================
 @app.route('/api/image/<int:plate_id>', methods=['GET'])
 def get_plate_image(plate_id):
-    """Lấy ảnh biển số"""
-    conn = get_db_connection()
-    plate = conn.execute('SELECT image_path FROM detected_plates WHERE id = ?', (plate_id,)).fetchone()
-    conn.close()
-    
-    if plate is None or plate['image_path'] is None:
-        return jsonify({'success': False, 'message': 'Không tìm thấy ảnh'}), 404
-    
-    image_path = plate['image_path']
-    
-    if not os.path.exists(image_path):
-        return jsonify({'success': False, 'message': 'File ảnh không tồn tại'}), 404
-    
-    return send_file(image_path, mimetype='image/jpeg')
+    """Get plate image"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': False,
+                'message': 'Database not found'
+            }), 404
+        
+        plate = conn.execute('SELECT image_path FROM detected_plates WHERE id = ?', (plate_id,)).fetchone()
+        conn.close()
+        
+        if plate is None or plate['image_path'] is None:
+            return jsonify({
+                'success': False,
+                'message': 'Image not found'
+            }), 404
+        
+        image_path = plate['image_path']
+        
+        if not os.path.exists(image_path):
+            return jsonify({
+                'success': False,
+                'message': 'Image file does not exist'
+            }), 404
+        
+        return send_file(image_path, mimetype='image/jpeg')
+    except Exception as e:
+        print(f"❌ Error in get_plate_image: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
 
+# ==================== DELETE ENDPOINTS ====================
 @app.route('/api/plates/<int:plate_id>', methods=['DELETE'])
 def delete_plate(plate_id):
-    """Xóa 1 biển số"""
-    conn = get_db_connection()
-    
-    # Lấy thông tin ảnh trước khi xóa
-    plate = conn.execute('SELECT image_path FROM detected_plates WHERE id = ?', (plate_id,)).fetchone()
-    
-    if plate is None:
-        conn.close()
-        return jsonify({'success': False, 'message': 'Không tìm thấy biển số'}), 404
-    
-    # Xóa file ảnh nếu có
-    if plate['image_path'] and os.path.exists(plate['image_path']):
-        os.remove(plate['image_path'])
-    
-    # Xóa record trong database
-    conn.execute('DELETE FROM detected_plates WHERE id = ?', (plate_id,))
-    conn.commit()
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'message': f'Đã xóa biển số ID {plate_id}'
-    })
-
-@app.route('/api/plates/all', methods=['DELETE'])
-def delete_all_plates():
-    """Xóa tất cả biển số (CẨN THẬN!)"""
-    # Yêu cầu xác nhận qua header
-    confirm = request.headers.get('X-Confirm-Delete')
-    
-    if confirm != 'YES_DELETE_ALL':
+    """Delete a plate"""
+    try:
+        if db:
+            reason = request.args.get('reason', 'User deleted')
+            success, message = db.delete_plate(plate_id, reason)
+            
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': message
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': message
+                }), 404
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Database manager not available'
+            }), 500
+    except Exception as e:
+        print(f"❌ Error in delete_plate: {e}")
         return jsonify({
-            'success': False, 
-            'message': 'Vui lòng thêm header X-Confirm-Delete: YES_DELETE_ALL để xác nhận'
-        }), 400
-    
-    conn = get_db_connection()
-    
-    # Xóa tất cả ảnh
-    plates = conn.execute('SELECT image_path FROM detected_plates WHERE image_path IS NOT NULL').fetchall()
-    for plate in plates:
-        if os.path.exists(plate['image_path']):
-            os.remove(plate['image_path'])
-    
-    # Xóa tất cả records
-    conn.execute('DELETE FROM detected_plates')
-    conn.commit()
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'message': 'Đã xóa tất cả biển số'
-    })
+            'success': False,
+            'message': str(e)
+        }), 500
 
-# ===================== CHẠY SERVER =====================
+# ==================== ERROR HANDLERS ====================
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({
+        'success': False,
+        'message': 'Endpoint not found',
+        'error': str(error)
+    }), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({
+        'success': False,
+        'message': 'Internal server error',
+        'error': str(error)
+    }), 500
+
+# ==================== RUN SERVER ====================
 if __name__ == '__main__':
-    # Kiểm tra database có tồn tại không
-    if not os.path.exists(DB_PATH):
-        print(f"⚠️  Cảnh báo: Database {DB_PATH} không tồn tại!")
-        print("   Vui lòng chạy chương trình chính trước để tạo database.")
+    print("\n" + "="*60)
+    print("🚀 License Plate API Server v2.0")
+    print("="*60)
     
-    print("\n🚀 License Plate API Server")
-    print("="*50)
-    print("📡 API đang chạy tại: http://localhost:5000")
-    print("📚 Xem danh sách endpoints tại: http://localhost:5000")
-    print("="*50 + "\n")
+    # Check database
+    if os.path.exists('license_plates.db'):
+        conn = sqlite3.connect('license_plates.db')
+        count = conn.execute('SELECT COUNT(*) FROM detected_plates').fetchone()[0]
+        conn.close()
+        print(f"✅ Database: license_plates.db ({count} records)")
+    else:
+        print("⚠️  Database: Not found - Will be created when main program runs")
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    print(f"📡 API running at: http://localhost:5000")
+    print(f"📚 API documentation: http://localhost:5000")
+    print(f"🔍 Test endpoint: http://localhost:5000/api/health")
+    print("="*60 + "\n")
+    
+    # Run with detailed logging
+    app.run(
+        host='0.0.0.0',
+        port=5000,
+        debug=True,
+        threaded=True
+    )
