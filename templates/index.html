@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard LPR</title>
+    <link rel="stylesheet" href="../static/css/main.css" />
+  </head>
+  <body>
+    <div class="container">
+      <!-- HEADER -->
+      <div class="header">
+        <div class="header-top">
+          <h1>
+            🚗 Dashboard LPR
+            <span class="live-indicator">
+              <span class="live-dot"></span>
+              LIVE
+            </span>
+          </h1>
+          <div style="display: flex; gap: 15px; flex-wrap: wrap">
+            <button onclick="exportData()" style="background: var(--success)">📥 Export</button>
+            <button onclick="showSettings()">⚙️ Cài đặt</button>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" onclick="switchTab('detection')">🔍 Phát hiện</button>
+          <button class="tab" onclick="switchTab('watchlist')">👁️ Watchlist</button>
+          <button class="tab" onclick="switchTab('comparison')">⚖️ So sánh</button>
+          <button class="tab" onclick="switchTab('alerts')">🚨 Cảnh báo</button>
+          <button class="tab" onclick="switchTab('analytics')">📊 Phân tích</button>
+          <button class="tab" onclick="switchTab('management')">🗑️ Quản lý</button>
+        </div>
+      </div>
+
+      <!-- STATS CARDS -->
+      <div class="stats-container">
+        <div class="stat-card" style="animation-delay: 0.1s">
+          <div class="stat-icon">🎯</div>
+          <div class="stat-value">
+            <span id="totalDetections">0</span>
+            <span class="stat-change">↑ 12%</span>
+          </div>
+          <div class="stat-label">Tổng phát hiện</div>
+          <div class="stat-footer">Từ đầu tháng</div>
+        </div>
+
+        <div class="stat-card" style="animation-delay: 0.2s">
+          <div class="stat-icon">🚙</div>
+          <div class="stat-value">
+            <span id="uniquePlates">0</span>
+          </div>
+          <div class="stat-label">Biển số độc nhất</div>
+          <div class="stat-footer">Không trùng lặp</div>
+        </div>
+
+        <div class="stat-card" style="animation-delay: 0.3s">
+          <div class="stat-icon">📅</div>
+          <div class="stat-value">
+            <span id="todayCount">0</span>
+            <span class="stat-change" style="color: var(--success)">↑ 5</span>
+          </div>
+          <div class="stat-label">Hôm nay</div>
+          <div class="stat-footer" id="currentTime"></div>
+        </div>
+
+        <div class="stat-card" style="animation-delay: 0.4s">
+          <div class="stat-icon">👁️</div>
+          <div class="stat-value">
+            <span id="watchlistCount">0</span>
+          </div>
+          <div class="stat-label">Watchlist</div>
+          <div class="stat-footer">Đang theo dõi</div>
+        </div>
+
+        <div class="stat-card" style="animation-delay: 0.5s">
+          <div class="stat-icon">🚨</div>
+          <div class="stat-value">
+            <span id="alertsCount" style="color: var(--danger)">0</span>
+          </div>
+          <div class="stat-label">Cảnh báo</div>
+          <div class="stat-footer">Chưa xử lý</div>
+        </div>
+      </div>
+
+      <!-- TAB: DETECTION -->
+      <div id="detection-section" class="section active">
+        <h2>🔍 Biển số đã phát hiện</h2>
+
+        <div class="controls">
+          <input
+            type="text"
+            class="search-box"
+            id="searchBox"
+            placeholder="🔍 Tìm kiếm biển số... (VD: 29A)"
+            onkeypress="if(event.key==='Enter') searchPlates()"
+          />
+          <button onclick="searchPlates()">🔍 Tìm kiếm</button>
+          <button class="success" onclick="loadDetections()">🔄 Làm mới</button>
+          <button onclick="clearSearch()">❌ Xóa bộ lọc</button>
+        </div>
+
+        <div class="filters">
+          <button class="filter-btn active" onclick="filterDetections('all')">Tất cả</button>
+          <button class="filter-btn" onclick="filterDetections('today')">Hôm nay</button>
+          <button class="filter-btn" onclick="filterDetections('watchlist')">Watchlist</button>
+          <button class="filter-btn" onclick="filterDetections('high-confidence')">Độ tin cậy cao</button>
+        </div>
+
+        <div id="detectionContent">
+          <div class="loading">Đang tải dữ liệu</div>
+        </div>
+
+        <div class="pagination" id="detectionPagination"></div>
+      </div>
+
+      <!-- TAB: WATCHLIST -->
+      <div id="watchlist-section" class="section">
+        <h2>👁️ Danh sách theo dõi</h2>
+
+        <div class="controls">
+          <button onclick="showAddWatchlistModal()">➕ Thêm biển số</button>
+          <button onclick="importWatchlist()">📥 Import từ file</button>
+          <button class="success" onclick="loadWatchlist()">🔄 Làm mới</button>
+          <button class="warning" onclick="exportWatchlist()">📤 Export</button>
+        </div>
+
+        <div id="watchlistContent">
+          <div class="loading">Đang tải watchlist</div>
+        </div>
+      </div>
+
+      <!-- TAB: COMPARISON -->
+      <div id="comparison-section" class="section">
+        <h2>⚖️ So sánh biển số</h2>
+
+        <div class="controls">
+          <input
+            type="text"
+            class="search-box"
+            id="compareBox"
+            placeholder="Nhập biển số cần so sánh (VD: 29A-12345)"
+            onkeypress="if(event.key==='Enter') comparePlates()"
+          />
+          <input
+            type="number"
+            id="thresholdBox"
+            value="0.7"
+            step="0.1"
+            min="0"
+            max="1"
+            style="width: 120px; padding: 14px; border: 2px solid #ddd; border-radius: 12px"
+            title="Ngưỡng độ tương đồng (0-1)"
+          />
+          <button onclick="comparePlates()">⚖️ So sánh</button>
+          <button onclick="findAllSimilar()">🔍 Tìm tất cả tương tự</button>
+        </div>
+
+        <div id="comparisonContent">
+          <div class="no-data">Nhập biển số để bắt đầu so sánh</div>
+        </div>
+      </div>
+
+      <!-- TAB: ALERTS -->
+      <div id="alerts-section" class="section">
+        <h2></h2>
+      </div>
+    </div>
+
+    <!-- Modal -->
+
+    <div id="addWatchlistModal" class="modal">
+      <div class="modal-content">
+        <h3>➕ Thêm vào Watchlist</h3>
+        <form id="addWatchlistForm" onsubmit="addWatchlistSubmit(event)">
+          <div class="form-group">
+            <label for="wlPlateNumber">Biển số xe</label>
+            <input type="text" id="wlPlateNumber" placeholder="VD: 59A-12345" required />
+          </div>
+          <div class="form-group">
+            <label for="wlReason">Lý do (tùy chọn)</label>
+            <textarea id="wlReason" rows="3" placeholder="VD: Xe nghi vấn, Xe VIP..."></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="danger" onclick="closeModal()">Hủy bỏ</button>
+            <button type="submit" class="success">Lưu lại</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Link to js -->
+    <script src="../static/js/app.js"></script>
+  </body>
+</html>
