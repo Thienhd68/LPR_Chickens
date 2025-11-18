@@ -68,7 +68,7 @@ class AdvancedLicensePlateDB:
         
         conn.commit()
         conn.close()
-        print(f"✅ Database nâng cao đã sẵn sàng: {self.db_path}")
+        print(f"✅ Database đã sẵn sàng: {self.db_path}")
     
     # ==================== CHỨC NĂNG LƯU BIỂN SỐ ====================
     def save_plate(self, plate_number, frame_number, confidence=0.0, 

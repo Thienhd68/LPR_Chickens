@@ -13,7 +13,7 @@ try:
     db = AdvancedLicensePlateDB()
     print("✅ Database manager loaded successfully")
 except ImportError as e:
-    print(f"⚠️  Warning: Could not load database_manager: {e}")
+    print(f"⚠️ Warning: Could not load database_manager: {e}")
     print("   API will run with basic functionality only")
     db = None
 
@@ -427,7 +427,7 @@ def internal_error(error):
 # ==================== RUN SERVER ====================
 if __name__ == '__main__':
     print("\n" + "="*60)
-    print("🚀 License Plate API Server v2.0 (Đã chuẩn hóa)")
+    print("🚀 License Plate API Server")
     print("="*60)
     
     if os.path.exists('license_plates.db'):
