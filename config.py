@@ -16,7 +16,7 @@ class Config:
     
     # API
     API_PREFIX = '/api'
-    CORS_ORIGINS = '*'  # Trong production nên chỉ định cụ thể
+    CORS_ORIGINS = '*'
     
     # Detection
     DETECTION_COOLDOWN = 30  # frames
