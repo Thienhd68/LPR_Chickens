@@ -1,12 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dashboard LPR</title>
+    <title>🚗 LPR Dashboard</title>
     <link rel="stylesheet" href="../static/css/main.css" />
   </head>
   <body>
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
     <div class="container">
       <!-- HEADER -->
       <div class="header">
@@ -18,19 +21,18 @@
               LIVE
             </span>
           </h1>
-          <div style="display: flex; gap: 15px; flex-wrap: wrap">
-            <button onclick="exportData()" style="background: var(--success)">📥 Export</button>
+          <div class="header-actions">
+            <button onclick="exportData()" class="success">📥 Export</button>
             <button onclick="showSettings()">⚙️ Cài đặt</button>
+            <button onclick="toggleTheme()" class="theme-toggle-btn">🌙 Dark</button>
           </div>
         </div>
 
         <div class="tabs">
           <button class="tab active" onclick="switchTab('detection')">🔍 Phát hiện</button>
           <button class="tab" onclick="switchTab('watchlist')">👁️ Watchlist</button>
-          <button class="tab" onclick="switchTab('comparison')">⚖️ So sánh</button>
           <button class="tab" onclick="switchTab('alerts')">🚨 Cảnh báo</button>
           <button class="tab" onclick="switchTab('analytics')">📊 Phân tích</button>
-          <button class="tab" onclick="switchTab('management')">🗑️ Quản lý</button>
         </div>
       </div>
 
@@ -93,12 +95,40 @@
             type="text"
             class="search-box"
             id="searchBox"
-            placeholder="🔍 Tìm kiếm biển số... (VD: 29A)"
+            placeholder="🔎 Tìm kiếm biển số... (VD: 29A, 51B-12345)"
             onkeypress="if(event.key==='Enter') searchPlates()"
           />
           <button onclick="searchPlates()">🔍 Tìm kiếm</button>
+          <button onclick="toggleAdvancedSearch()">🎯 Nâng cao</button>
           <button class="success" onclick="loadDetections()">🔄 Làm mới</button>
           <button onclick="clearSearch()">❌ Xóa bộ lọc</button>
+        </div>
+
+        <!-- Advanced Search Panel -->
+        <div class="search-advanced" id="advancedSearch">
+          <div class="search-grid">
+            <div class="form-group">
+              <label>Từ ngày</label>
+              <input type="date" id="dateFrom" class="search-box" />
+            </div>
+            <div class="form-group">
+              <label>Đến ngày</label>
+              <input type="date" id="dateTo" class="search-box" />
+            </div>
+            <div class="form-group">
+              <label>Độ tin cậy tối thiểu (%)</label>
+              <input type="number" id="minConfidence" class="search-box" min="0" max="100" value="0" placeholder="0-100%" />
+            </div>
+            <div class="form-group">
+              <label>Trạng thái</label>
+              <select id="statusFilter" class="search-box">
+                <option value="all">Tất cả</option>
+                <option value="watchlist">Watchlist</option>
+                <option value="normal">Bình thường</option>
+              </select>
+            </div>
+          </div>
+          <button onclick="applyAdvancedSearch()" style="margin-top: 15px">🎯 Áp dụng bộ lọc</button>
         </div>
 
         <div class="filters">
@@ -131,66 +161,99 @@
         </div>
       </div>
 
-      <!-- TAB: COMPARISON -->
-      <div id="comparison-section" class="section">
-        <h2>⚖️ So sánh biển số</h2>
+      <!-- TAB: ALERTS -->
+      <div id="alerts-section" class="section">
+        <h2>🚨 Cảnh báo hệ thống</h2>
 
         <div class="controls">
-          <input
-            type="text"
-            class="search-box"
-            id="compareBox"
-            placeholder="Nhập biển số cần so sánh (VD: 29A-12345)"
-            onkeypress="if(event.key==='Enter') comparePlates()"
-          />
-          <input
-            type="number"
-            id="thresholdBox"
-            value="0.7"
-            step="0.1"
-            min="0"
-            max="1"
-            style="width: 120px; padding: 14px; border: 2px solid #ddd; border-radius: 12px"
-            title="Ngưỡng độ tương đồng (0-1)"
-          />
-          <button onclick="comparePlates()">⚖️ So sánh</button>
-          <button onclick="findAllSimilar()">🔍 Tìm tất cả tương tự</button>
+          <button class="success" onclick="loadAlerts()">🔄 Làm mới</button>
+          <button onclick="resolveAllAlerts()">✅ Xử lý tất cả</button>
+          <button class="danger" onclick="clearAlerts()">🗑️ Xóa đã xử lý</button>
         </div>
 
-        <div id="comparisonContent">
-          <div class="no-data">Nhập biển số để bắt đầu so sánh</div>
+        <div id="alertsContent">
+          <div class="loading">Đang tải cảnh báo</div>
         </div>
       </div>
 
-      <!-- TAB: ALERTS -->
-      <div id="alerts-section" class="section">
-        <h2></h2>
+      <!-- TAB: ANALYTICS -->
+      <div id="analytics-section" class="section">
+        <h2>📊 Phân tích & Thống kê</h2>
+
+        <div class="analytics-grid">
+          <div class="chart-card">
+            <h3>📈 Phát hiện theo giờ</h3>
+            <div id="hourlyChart" class="chart-placeholder">
+              <div class="no-data">Biểu đồ đang phát triển</div>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3>🏆 Top biển số</h3>
+            <div id="topPlatesChart" class="chart-placeholder">
+              <div class="no-data">Biểu đồ đang phát triển</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Modal -->
-
+    <!-- MODAL: Add to Watchlist -->
     <div id="addWatchlistModal" class="modal">
       <div class="modal-content">
         <h3>➕ Thêm vào Watchlist</h3>
         <form id="addWatchlistForm" onsubmit="addWatchlistSubmit(event)">
           <div class="form-group">
-            <label for="wlPlateNumber">Biển số xe</label>
-            <input type="text" id="wlPlateNumber" placeholder="VD: 59A-12345" required />
+            <label for="wlPlateNumber">Biển số xe *</label>
+            <input type="text" id="wlPlateNumber" placeholder="VD: 29A-12345" required />
           </div>
           <div class="form-group">
-            <label for="wlReason">Lý do (tùy chọn)</label>
-            <textarea id="wlReason" rows="3" placeholder="VD: Xe nghi vấn, Xe VIP..."></textarea>
+            <label for="wlReason">Lý do</label>
+            <textarea id="wlReason" rows="3" placeholder="VD: Xe nghi vấn, Xe VIP, Vi phạm thường xuyên..."></textarea>
+          </div>
+          <div class="form-group">
+            <label for="wlAlertType">Loại cảnh báo</label>
+            <select id="wlAlertType">
+              <option value="warning">⚠️ Cảnh báo</option>
+              <option value="danger">🚨 Nguy hiểm</option>
+              <option value="info">ℹ️ Thông tin</option>
+            </select>
           </div>
           <div class="form-actions">
             <button type="button" class="danger" onclick="closeModal()">Hủy bỏ</button>
-            <button type="submit" class="success">Lưu lại</button>
+            <button type="submit" class="success">💾 Lưu lại</button>
           </div>
         </form>
       </div>
     </div>
 
-    <!-- Link to js -->
+    <!-- MODAL: Edit Watchlist -->
+    <div id="editWatchlistModal" class="modal">
+      <div class="modal-content">
+        <h3>✏️ Chỉnh sửa Watchlist</h3>
+        <form id="editWatchlistForm" onsubmit="editWatchlistSubmit(event)">
+          <input type="hidden" id="editPlateNumber" />
+          <div class="form-group">
+            <label for="editReason">Lý do</label>
+            <textarea id="editReason" rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="editAlertType">Loại cảnh báo</label>
+            <select id="editAlertType">
+              <option value="warning">⚠️ Cảnh báo</option>
+              <option value="danger">🚨 Nguy hiểm</option>
+              <option value="info">ℹ️ Thông tin</option>
+            </select>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="danger" onclick="closeEditModal()">Hủy</button>
+            <button type="submit" class="success">💾 Cập nhật</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Link to JavaScript -->
     <script src="../static/js/app.js"></script>
   </body>
 </html>
