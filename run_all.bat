@@ -3,7 +3,7 @@ REM Kích hoạt virtual environment
 call .venv\Scripts\activate.bat
 
 REM Chạy main_advanced.py ngầm (Script nhận diện)
-start /B python main_advanced.py --source 0 --save-crops --watchlist watchlist.txt
+start /B python main_advanced.py --source 1 --save-crops --watchlist watchlist.txt
 
 REM Chạy app.py ngầm (Server API + Frontend)
 start /B python app.py

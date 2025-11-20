@@ -39,8 +39,8 @@ if args.watchlist and os.path.exists(args.watchlist):
 # Tải models
 print("⏳ Đang tải models...")
 yolo_LP_detect = torch.hub.load('yolov5', 'custom', path='model/LP_detector.pt', force_reload=True, source='local')
-yolo_license_plate = torch.hub.load('yolov5', 'custom', path='model/LP_ocr.pt', force_reload=True, source='local')
-yolo_license_plate.conf = 0.60
+yolo_license_plate = torch.hub.load('yolov5', 'custom', path='model/LP_ocr_nano_62.pt', force_reload=True, source='local')
+yolo_license_plate.conf = 0.50
 print("✅ Models đã tải xong!")
 
 # ===================== MỞ NGUỒN VIDEO =====================
@@ -103,7 +103,7 @@ while True:
         frame_count += 1
         
         # Phát hiện biển số
-        plates = yolo_LP_detect(frame, size=640)
+        plates = yolo_LP_detect(frame, size=960)    
         list_plates = plates.pandas().xyxy[0].values.tolist()
         
         detected_plates = []
@@ -227,8 +227,15 @@ while True:
         cv2.putText(display_frame, "PAUSED - Press 'p' to continue", 
                     (frame.shape[1]//2 - 250, frame.shape[0]//2), 
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
-    
-    cv2.imshow("Advanced License Plate Detection", display_frame)
+    #tránh bị tràn màn hình
+    # Resize giữ tỷ lệ
+    max_width, max_height = 1280, 720
+    h, w = display_frame.shape[:2]
+    scale = min(max_width/w, max_height/h)
+    resized_frame = cv2.resize(display_frame, (int(w*scale), int(h*scale)))
+
+    cv2.imshow("Advanced License Plate Detection", resized_frame)
+
     
     # Xử lý phím bấm
     key = cv2.waitKey(1) & 0xFF
