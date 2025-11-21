@@ -1,294 +1,479 @@
+"""
+Main Detection Script với Camera Control
+Hỗ trợ điều khiển từ Dashboard
+"""
+import threading
+import io
 from PIL import Image
 import cv2
 import torch
-import math 
-import function.utils_rotate as utils_rotate
-import function.helper as helper
 import time
 import os
 import argparse
+import json
+from datetime import datetime
+
+# Import modules
+from config import Config
 from database_manager import AdvancedLicensePlateDB
+from camera_manager import CameraManager
+import function.utils_rotate as utils_rotate
+import function.helper as helper
 
-# ===================== CẤU HÌNH =====================
-parser = argparse.ArgumentParser(description='Advanced License Plate Detection')
-parser.add_argument('--source', type=str, default='0', help='Nguồn video')
-parser.add_argument('--save', action='store_true', help='Lưu video output')
-parser.add_argument('--save-crops', action='store_true', help='Lưu ảnh biển số')
-parser.add_argument('--watchlist', type=str, help='File watchlist (1 biển số/dòng)')
-args = parser.parse_args()
 
-# Khởi tạo database nâng cao
-db = AdvancedLicensePlateDB()
-
-# Tạo thư mục lưu ảnh
-if args.save_crops:
-    os.makedirs('detected_plates', exist_ok=True)
-    print("📁 Thư mục 'detected_plates' đã sẵn sàng")
-
-# Load watchlist từ file nếu có
-if args.watchlist and os.path.exists(args.watchlist):
-    print(f"📋 Đang tải watchlist từ {args.watchlist}...")
-    with open(args.watchlist, 'r', encoding='utf-8') as f:
-        for line in f:
-            plate = line.strip()
-            if plate:
-                success, _ = db.add_to_watchlist(plate, "Từ file watchlist", "warning")
-                if success:
-                    print(f"   ✅ Đã thêm: {plate}")
-
-# Tải models
-print("⏳ Đang tải models...")
-yolo_LP_detect = torch.hub.load('yolov5', 'custom', path='model/LP_detector.pt', force_reload=True, source='local')
-yolo_license_plate = torch.hub.load('yolov5', 'custom', path='model/LP_ocr.pt', force_reload=True, source='local')
-yolo_license_plate.conf = 0.60
-print("✅ Models đã tải xong!")
-
-# ===================== MỞ NGUỒN VIDEO =====================
-source = int(args.source) if args.source.isdigit() else args.source
-cap = cv2.VideoCapture(source)
-
-if not cap.isOpened():
-    print(f"❌ Không mở được nguồn: {source}")
-    exit()
-
-if isinstance(source, int):
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-    print(f"📹 Đang sử dụng Camera {source}")
-else:
-    print(f"🎥 Đang xử lý video: {source}")
-
-# ===================== SETUP SAVE VIDEO =====================
-out = None
-if args.save:
-    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = int(cap.get(cv2.CAP_PROP_FPS)) or 20
+class LicensePlateDetector:
+    """
+    License Plate Detection System với Camera Control
+    """
     
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    output_path = f'output_{time.strftime("%Y%m%d_%H%M%S")}.mp4'
-    out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
-    print(f"💾 Sẽ lưu video vào: {output_path}")
-
-# ===================== BIẾN TRACKING =====================
-prev_frame_time = 0
-new_frame_time = 0
-frame_count = 0
-detected_plates_history = {}
-DETECTION_COOLDOWN = 30
-
-# Biến cho cảnh báo
-alert_sound_enabled = True
-alert_frames = {}  # Lưu frame hiển thị cảnh báo
-
-print("\n🚀 Bắt đầu xử lý...")
-print("⌨️  Nhấn 'q' để thoát")
-print("⌨️  Nhấn 'p' để tạm dừng/tiếp tục")
-print("⌨️  Nhấn 's' để chụp ảnh màn hình")
-print("⌨️  Nhấn 'd' để xem danh sách 10 biển số gần nhất")
-print("⌨️  Nhấn 'w' để xem watchlist")
-print("⌨️  Nhấn 'a' để thêm biển số vào watchlist")
-print("⌨️  Nhấn 'm' để bật/tắt âm thanh cảnh báo\n")
-
-paused = False
-
-# ===================== VÒNG LẶP CHÍNH =====================
-while True:
-    if not paused:
-        ret, frame = cap.read()
-        if not ret:
-            print("✅ Video đã kết thúc hoặc lỗi đọc frame.")
-            break
+    def __init__(self, args):
+        """Khởi tạo detector"""
+        self.args = args
         
-        frame_count += 1
+        # Khởi tạo config
+        Config.init_app()
         
+        # Khởi tạo database
+        self.db = AdvancedLicensePlateDB()
+        
+        # Khởi tạo camera manager
+        self.camera_manager = CameraManager()
+        
+        # Load models
+        print("⏳ Đang tải models...")
+        self.yolo_LP_detect = torch.hub.load('yolov5', 'custom', 
+                                             path=Config.LP_DETECTOR_MODEL, 
+                                             force_reload=True, source='local')
+        self.yolo_license_plate = torch.hub.load('yolov5', 'custom', 
+                                                 path=Config.LP_OCR_MODEL, 
+                                                 force_reload=True, source='local')
+        self.yolo_license_plate.conf = Config.YOLO_CONFIDENCE
+        print("✅ Models đã tải xong!")
+        
+        # State management
+        self.running = False
+        self.paused = False
+        self.frame_count = 0
+        self.detected_plates_history = {}
+        self.alert_frames = {}
+        
+        # Statistics
+        self.stats = {
+            'start_time': None,
+            'frames_processed': 0,
+            'detections_count': 0,
+            'watchlist_hits': 0
+        }
+        
+        # Video writer (nếu save)
+        self.out = None
+        
+        # Load watchlist từ file nếu có
+        self.load_watchlist_from_file()
+
+        # ⭐ QUAN TRỌNG: Khởi tạo biến cho streaming
+        self.current_frame = None
+        self.lock = threading.Lock()
+        self.stop_event = threading.Event()
+    
+    def get_jpeg(self):
+        """
+        Chuyển đổi frame hiện tại sang JPEG để stream
+        Method này được gọi bởi app.py trong route /video_feed
+        """
+        with self.lock:
+            if self.current_frame is None:
+                return None
+
+            # Encode sang JPEG
+            try:
+                ret, jpeg = cv2.imencode('.jpg', self.current_frame)
+                if ret:
+                    return jpeg.tobytes()
+            except Exception as e:
+                print(f"⚠️  Lỗi encode JPEG: {e}")
+            
+            return None
+    
+    def stop(self):
+        """Hàm để gọi từ bên ngoài khi muốn dừng"""
+        self.stop_event.set()
+        self.running = False
+    
+    def load_watchlist_from_file(self):
+        """Load watchlist từ file text"""
+        if self.args.watchlist and os.path.exists(self.args.watchlist):
+            print(f"📋 Đang tải watchlist từ {self.args.watchlist}...")
+            count = 0
+            with open(self.args.watchlist, 'r', encoding='utf-8') as f:
+                for line in f:
+                    plate = line.strip()
+                    if plate and not plate.startswith('#'):
+                        success, _ = self.db.add_to_watchlist(plate, "Từ file watchlist", "warning")
+                        if success:
+                            count += 1
+            print(f"   ✅ Đã thêm {count} biển số vào watchlist")
+    
+    def open_camera(self, source_type: str, source_value: str) -> bool:
+        """
+        Mở camera source
+        
+        Returns:
+            bool: Thành công hay không
+        """
+        success, message = self.camera_manager.open_source(source_type, source_value)
+        
+        if success:
+            print(f"✅ {message}")
+            
+            # Setup video writer nếu cần
+            if self.args.save:
+                self.setup_video_writer()
+            
+            # Update state file
+            self.update_state_file(running=True, source_type=source_type, source_value=source_value)
+            
+            return True
+        else:
+            print(f"❌ {message}")
+            return False
+    
+    def setup_video_writer(self):
+        """Setup video writer để save output"""
+        info = self.camera_manager.get_info()
+        
+        if 'width' in info and 'height' in info:
+            width = info['width']
+            height = info['height']
+            fps = info.get('fps', Config.DEFAULT_FPS)
+        else:
+            width = Config.DEFAULT_VIDEO_WIDTH
+            height = Config.DEFAULT_VIDEO_HEIGHT
+            fps = Config.DEFAULT_FPS
+        
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        output_path = f'output_{time.strftime("%Y%m%d_%H%M%S")}.mp4'
+        self.out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+        print(f"💾 Sẽ lưu video vào: {output_path}")
+    
+    def process_frame(self, frame):
+        """
+        Xử lý một frame: phát hiện biển số
+        
+        Returns:
+            Tuple[frame, detected_plates]
+        """
         # Phát hiện biển số
-        plates = yolo_LP_detect(frame, size=640)
+        plates = self.yolo_LP_detect(frame, size=640)
         list_plates = plates.pandas().xyxy[0].values.tolist()
         
         detected_plates = []
-        current_alerts = []
         
         for plate in list_plates:
-            flag = 0
             x = int(plate[0])
             y = int(plate[1])
             w = int(plate[2] - plate[0])
             h = int(plate[3] - plate[1])
             confidence = plate[4]
             
-            # Vẽ khung biển số
+            # Crop biển số
             crop_img = frame[y:y+h, x:x+w]
             
-            # Đọc biển số
-            lp = ""
+            # Đọc biển số (thử nhiều góc xoay)
+            lp = "unknown"
             for cc in range(0, 2):
                 for ct in range(0, 2):
-                    lp = helper.read_plate(yolo_license_plate, utils_rotate.deskew(crop_img, cc, ct))
+                    lp = helper.read_plate(self.yolo_license_plate, 
+                                          utils_rotate.deskew(crop_img, cc, ct))
                     if lp != "unknown":
-                        detected_plates.append(lp)
-                        
-                        # Kiểm tra có trong watchlist không
-                        is_watchlist, watchlist_info = db.check_watchlist(lp)
-                        
-                        # Chọn màu khung
-                        box_color = (0, 0, 255) if is_watchlist else (0, 255, 0)
-                        cv2.rectangle(frame, (x, y), (x+w, y+h), box_color, 3)
-                        
-                        # Kiểm tra nên lưu không
-                        should_save = False
-                        if lp not in detected_plates_history:
-                            should_save = True
-                        elif frame_count - detected_plates_history[lp] > DETECTION_COOLDOWN:
-                            should_save = True
-                        
-                        # Lưu vào database
-                        if should_save:
-                            image_path = None
-                            if args.save_crops:
-                                crop_filename = f'detected_plates/{lp}_{time.strftime("%Y%m%d_%H%M%S")}.jpg'
-                                cv2.imwrite(crop_filename, crop_img)
-                                image_path = crop_filename
-                            
-                            plate_id, triggered_alert = db.save_plate(
-                                lp, frame_count, confidence, image_path, str(source)
-                            )
-                            detected_plates_history[lp] = frame_count
-                            
-                            if triggered_alert:
-                                print(f"🚨 CẢNH BÁO: Phát hiện biển số trong watchlist: {lp}")
-                                current_alerts.append({
-                                    'plate': lp,
-                                    'reason': watchlist_info['reason'],
-                                    'type': watchlist_info['alert_type']
-                                })
-                                alert_frames[lp] = frame_count + 100  # Hiển thị cảnh báo 100 frames
-                            else:
-                                print(f"💾 Đã lưu biển số: {lp} (ID: {plate_id})")
-                        
-                        # Vẽ text biển số
-                        text_bg_color = (0, 0, 255) if is_watchlist else (0, 255, 0)
-                        text_size = cv2.getTextSize(lp, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)[0]
-                        cv2.rectangle(frame, (x, y-35), (x + text_size[0] + 10, y), text_bg_color, -1)
-                        
-                        # Thêm icon cảnh báo nếu trong watchlist
-                        display_text = f"⚠️ {lp}" if is_watchlist else lp
-                        cv2.putText(frame, display_text, (x, y-10), 
-                                  cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255,255,255), 2)
-                        
-                        flag = 1
                         break
-                if flag == 1:
+                if lp != "unknown":
                     break
+            
+            if lp != "unknown":
+                detected_plates.append({
+                    'plate_number': lp,
+                    'confidence': confidence,
+                    'bbox': (x, y, w, h),
+                    'crop': crop_img
+                })
+                
+                # Kiểm tra watchlist
+                is_watchlist, watchlist_info = self.db.check_watchlist(lp)
+                
+                # Vẽ khung
+                box_color = (0, 0, 255) if is_watchlist else (0, 255, 0)
+                cv2.rectangle(frame, (x, y), (x+w, y+h), box_color, 3)
+                
+                # Vẽ text
+                text_bg_color = (0, 0, 255) if is_watchlist else (0, 255, 0)
+                text_size = cv2.getTextSize(lp, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)[0]
+                cv2.rectangle(frame, (x, y-35), (x + text_size[0] + 10, y), text_bg_color, -1)
+                
+                display_text = f"⚠️ {lp}" if is_watchlist else lp
+                cv2.putText(frame, display_text, (x, y-10), 
+                          cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255,255,255), 2)
+                
+                # Lưu vào database
+                should_save = self.should_save_plate(lp)
+                
+                if should_save:
+                    image_path = None
+                    if self.args.save_crops:
+                        crop_filename = f'detected_plates/{lp}_{time.strftime("%Y%m%d_%H%M%S")}.jpg'
+                        cv2.imwrite(crop_filename, crop_img)
+                        image_path = crop_filename
+                    
+                    source_info = self.camera_manager.get_info()
+                    source_str = f"{source_info.get('source_type', 'unknown')}"
+                    
+                    plate_id, triggered_alert = self.db.save_plate(
+                        lp, self.frame_count, confidence, image_path, source_str
+                    )
+                    
+                    self.stats['detections_count'] += 1
+                    
+                    if triggered_alert:
+                        self.stats['watchlist_hits'] += 1
+                        print(f"🚨 CẢNH BÁO: Phát hiện biển số trong watchlist: {lp}")
+                        self.alert_frames[lp] = self.frame_count + Config.ALERT_DISPLAY_FRAMES
+                        
+                        # Auto pause nếu bật
+                        if Config.AUTO_PAUSE_ON_ALERT:
+                            self.paused = True
+                            print("⏸️  Tự động pause do phát hiện watchlist")
+                    else:
+                        print(f"💾 Đã lưu: {lp} (ID: {plate_id})")
+                    
+                    self.detected_plates_history[lp] = self.frame_count
         
-        # Hiển thị FPS
-        new_frame_time = time.time()
-        fps = int(1 / (new_frame_time - prev_frame_time + 1e-6))
-        prev_frame_time = new_frame_time
+        return frame, detected_plates
+    
+    def should_save_plate(self, plate_number: str) -> bool:
+        """Kiểm tra có nên lưu biển số này không (để tránh duplicate)"""
+        if plate_number not in self.detected_plates_history:
+            return True
         
-        # Vẽ bảng thông tin
+        frames_since_last = self.frame_count - self.detected_plates_history[plate_number]
+        return frames_since_last > Config.DETECTION_COOLDOWN
+    
+    def draw_ui_overlay(self, frame):
+        """Vẽ UI overlay lên frame"""
+        # Background cho info panel
         info_bg = frame.copy()
         cv2.rectangle(info_bg, (5, 5), (350, 180), (0, 0, 0), -1)
         frame = cv2.addWeighted(frame, 0.7, info_bg, 0.3, 0)
         
+        # FPS
+        if self.stats['start_time']:
+            elapsed = time.time() - self.stats['start_time']
+            fps = int(self.frame_count / elapsed) if elapsed > 0 else 0
+        else:
+            fps = 0
+        
         cv2.putText(frame, f"FPS: {fps}", (10, 30), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
-        cv2.putText(frame, f"Frame: {frame_count}", (10, 60), 
+        cv2.putText(frame, f"Frame: {self.frame_count}", (10, 60), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
-        cv2.putText(frame, f"Detected: {len(detected_plates)}", (10, 90), 
+        cv2.putText(frame, f"Detections: {self.stats['detections_count']}", (10, 90), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,0), 2)
-        cv2.putText(frame, f"Total DB: {db.get_total_count()}", (10, 120), 
+        cv2.putText(frame, f"Total DB: {self.db.get_total_count()}", (10, 120), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,255), 2)
         
-        # Hiển thị số watchlist
-        watchlist_count = db.get_statistics()['watchlist_count']
+        # Watchlist count
+        watchlist_count = self.db.get_statistics()['watchlist_count']
         cv2.putText(frame, f"Watchlist: {watchlist_count}", (10, 150), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,255), 2)
         
-        # Hiển thị cảnh báo active
+        # Alert banners
         alert_y = 220
-        for plate, end_frame in list(alert_frames.items()):
-            if frame_count < end_frame:
-                # Vẽ banner cảnh báo
+        for plate, end_frame in list(self.alert_frames.items()):
+            if self.frame_count < end_frame:
                 cv2.rectangle(frame, (0, alert_y-30), (frame.shape[1], alert_y+10), (0, 0, 255), -1)
                 cv2.putText(frame, f"!!! CANH BAO: {plate} trong danh sach theo doi !!!", 
                            (20, alert_y), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255,255,255), 3)
                 alert_y += 50
             else:
-                del alert_frames[plate]
+                del self.alert_frames[plate]
         
-        # Lưu video
-        if out is not None:
-            out.write(frame)
+        return frame
     
-    # Hiển thị video
-    display_frame = frame.copy()
-    if paused:
-        cv2.putText(display_frame, "PAUSED - Press 'p' to continue", 
-                    (frame.shape[1]//2 - 250, frame.shape[0]//2), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+    def run(self):
+        """Main detection loop"""
+
+        # Kiểm tra camera đã mở chưa
+        if not self.camera_manager.is_opened:
+            print("❌ Chưa mở camera source. Dùng open_camera() trước.")
+            return
+        # Trạng thái
+        self.running = True
+        self.stats['start_time'] = time.time()
+        
+        print("\n🚀 Bắt đầu phát hiện...")
+        print("⌨️  Nhấn 'q' để thoát")
+        print("⌨️  Nhấn 'p' để tạm dừng/tiếp tục")
+        print("⌨️  Nhấn 's' để chụp ảnh\n")
+        
+        while self.running and not self.stop_event.is_set():
+            
+            # Check pause
+            if self.paused:
+                key = cv2.waitKey(100) & 0xFF
+                if key == ord('p'):
+                    self.paused = False
+                    print("▶️  Tiếp tục")
+                elif key == ord('q'):
+                    break
+                continue
+            
+            # Đọc frame
+            ret, frame = self.camera_manager.read_frame()
+            
+            if not ret:
+                print("⚠️  Không đọc được frame. Kết thúc.")
+                break
+            
+            self.frame_count += 1
+            self.stats['frames_processed'] += 1
+            
+            # Skip frames nếu cần (để tăng tốc)
+            if self.frame_count % Config.FRAME_SKIP != 0:
+                continue
+            
+            # Process frame
+            frame, detected = self.process_frame(frame)
+            
+            # Draw UI overlay
+            frame = self.draw_ui_overlay(frame)
+            
+            # ⭐ LƯU FRAME CHO WEB STREAMING
+            with self.lock:
+                self.current_frame = frame.copy()
+
+            # Save video
+            if self.out is not None:
+                self.out.write(frame)
+            
+            # Hiển thị
+            if Config.ENABLE_PREVIEW:
+                cv2.imshow("License Plate Detection", frame)
+            
+            # Keyboard control
+            key = cv2.waitKey(1) & 0xFF
+            
+            if key == ord('q'):
+                print("\n🛑 Dừng phát hiện...")
+                break
+            elif key == ord('p'):
+                self.paused = True
+                print("⏸️  Tạm dừng")
+            elif key == ord('s'):
+                screenshot_path = f'screenshot_{time.strftime("%Y%m%d_%H%M%S")}.jpg'
+                cv2.imwrite(screenshot_path, frame)
+                print(f"📸 Đã lưu: {screenshot_path}")
+        
+        # Cleanup
+        self.cleanup()
     
-    cv2.imshow("Advanced License Plate Detection", display_frame)
+    def cleanup(self):
+        """Dọn dẹp resources"""
+        self.running = False
+        
+        # Close camera
+        self.camera_manager.close()
+        
+        # Release video writer
+        if self.out is not None:
+            self.out.release()
+            print("✅ Đã lưu video output")
+        
+        # Close windows
+        cv2.destroyAllWindows()
+        
+        # Update state file
+        self.update_state_file(running=False)
+        
+        # Print statistics
+        self.print_statistics()
     
-    # Xử lý phím bấm
-    key = cv2.waitKey(1) & 0xFF
+    def print_statistics(self):
+        """In thống kê kết thúc"""
+        stats = self.db.get_statistics()
+        
+        print(f"\n📊 THỐNG KÊ:")
+        print(f"   - Frames xử lý: {self.stats['frames_processed']}")
+        print(f"   - Biển số phát hiện: {self.stats['detections_count']}")
+        print(f"   - Watchlist hits: {self.stats['watchlist_hits']}")
+        print(f"   - Tổng DB: {stats['total']}")
+        print(f"   - Biển số độc nhất: {stats['unique']}")
+        print("👋 Hoàn tất!")
     
-    if key == ord('q'):
-        print("\n🛑 Dừng chương trình...")
-        break
-    elif key == ord('p'):
-        paused = not paused
-        print("⏸️  Tạm dừng" if paused else "▶️  Tiếp tục")
-    elif key == ord('s'):
-        screenshot_path = f'screenshot_{time.strftime("%Y%m%d_%H%M%S")}.jpg'
-        cv2.imwrite(screenshot_path, frame)
-        print(f"📸 Đã lưu ảnh: {screenshot_path}")
-    elif key == ord('d'):
-        print("\n" + "="*60)
-        print("📋 10 BIỂN SỐ GẦN NHẤT:")
-        recent = db.get_recent_plates(10)
-        for i, plate_data in enumerate(recent, 1):
-            alert_icon = "🚨" if plate_data['is_watchlist'] else "  "
-            print(f"{i}. {alert_icon} {plate_data['plate_number']} - {plate_data['timestamp']} (Frame: {plate_data['frame_number']})")
-        print("="*60 + "\n")
-    elif key == ord('w'):
-        print("\n" + "="*60)
-        print("👁️  DANH SÁCH WATCHLIST:")
-        watchlist = db.get_watchlist()
-        if watchlist:
-            for i, item in enumerate(watchlist, 1):
-                print(f"{i}. {item['plate_number']} - {item['reason']}")
-                print(f"   Thêm lúc: {item['added_date']}, Phát hiện: {item['detection_count']} lần")
-        else:
-            print("   (Trống)")
-        print("="*60 + "\n")
-    elif key == ord('a'):
-        print("\n➕ THÊM BIỂN SỐ VÀO WATCHLIST:")
-        plate_input = input("Nhập biển số: ").strip()
-        if plate_input:
-            reason_input = input("Lý do (tùy chọn): ").strip() or "Thêm thủ công"
-            success, result = db.add_to_watchlist(plate_input, reason_input, "warning")
-            if success:
-                print(f"✅ Đã thêm {plate_input} vào watchlist")
+    def update_state_file(self, running=None, source_type=None, source_value=None):
+        """Cập nhật state file để dashboard tracking"""
+        try:
+            # Đọc state hiện tại
+            if os.path.exists(Config.STATE_FILE):
+                with open(Config.STATE_FILE, 'r') as f:
+                    state = json.load(f)
             else:
-                print(f"❌ {result}")
-    elif key == ord('m'):
-        alert_sound_enabled = not alert_sound_enabled
-        print(f"🔔 Âm thanh cảnh báo: {'BẬT' if alert_sound_enabled else 'TẮT'}")
+                state = {}
+            
+            # Update state
+            if running is not None:
+                state['running'] = running
+            
+            if source_type is not None:
+                state['source_type'] = source_type
+                state['source_value'] = source_value
+                state['start_time'] = datetime.now().isoformat() if running else None
+            
+            state['frames_processed'] = self.stats['frames_processed']
+            state['detections_count'] = self.stats['detections_count']
+            state['last_update'] = datetime.now().isoformat()
+            
+            # Ghi vào file
+            with open(Config.STATE_FILE, 'w') as f:
+                json.dump(state, f, indent=2)
+        
+        except Exception as e:
+            print(f"⚠️  Lỗi update state: {e}")
 
-# ===================== GIẢI PHÓNG TÀI NGUYÊN =====================
-cap.release()
-if out is not None:
-    out.release()
-    print(f"✅ Đã lưu video output!")
-cv2.destroyAllWindows()
 
-# Hiển thị thống kê cuối
-stats = db.get_statistics()
-print(f"\n📊 THỐNG KÊ:")
-print(f"   - Tổng số phát hiện: {stats['total']}")
-print(f"   - Biển số độc nhất: {stats['unique']}")
-print(f"   - Trong watchlist: {stats['watchlist_count']}")
-print(f"   - Cảnh báo chưa xử lý: {stats['alerts_pending']}")
-print(f"   - Tổng số frame: {frame_count}")
-print("👋 Chương trình kết thúc!")
+# ==================== MAIN ====================
+
+def main():
+    """Main entry point"""
+    parser = argparse.ArgumentParser(description='License Plate Detection with Camera Control')
+    parser.add_argument('--source-type', type=str, default='webcam', 
+                       help='Loại nguồn: webcam/phone/video/image')
+    parser.add_argument('--source-value', type=str, default='0', 
+                       help='Giá trị nguồn (ID/URL/path)')
+    parser.add_argument('--save', action='store_true', help='Lưu video output')
+    parser.add_argument('--save-crops', action='store_true', help='Lưu ảnh biển số')
+    parser.add_argument('--watchlist', type=str, help='File watchlist')
+    
+    args = parser.parse_args()
+    
+    # Tạo detector
+    detector = LicensePlateDetector(args)
+    
+    # Mở camera
+    if not detector.open_camera(args.source_type, args.source_value):
+        print("❌ Không thể mở camera. Thoát.")
+        return
+    
+    # Run detection
+    try:
+        detector.run()
+    except KeyboardInterrupt:
+        print("\n⚠️  Bị ngắt bởi user")
+        detector.cleanup()
+    except Exception as e:
+        print(f"\n❌ Lỗi: {e}")
+        import traceback
+        traceback.print_exc()
+        detector.cleanup()
+
+
+if __name__ == '__main__':
+    main()

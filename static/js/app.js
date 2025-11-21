@@ -1,26 +1,20 @@
 // ==================== CONFIGURATION ====================
-const API_BASE = window.location.origin && window.location.origin !== "null" 
-    ? window.location.origin 
-    : "http://localhost:5000";
+const API_BASE = window.location.origin || "http://localhost:5000";
 
-// State management
-let currentFilter = 'all';
-let currentTab = 'detection';
-let searchCache = new Map();
-let autoRefreshInterval = null;
+let currentSourceType = 'webcam';
+let currentTab = 'camera';
+let detectionStatus = null;
+let statusCheckInterval = null;
 
 // ==================== UTILITY FUNCTIONS ====================
+
 async function fetchJson(url, opts = {}) {
     try {
         const res = await fetch(url, opts);
-        if (!res.ok) {
-            const text = await res.text();
-            console.error("Fetch error", url, res.status, text);
-            throw new Error(`HTTP ${res.status}: ${text}`);
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return await res.json();
     } catch (err) {
-        console.error("Network/Fetch failed for", url, err);
+        console.error("Fetch error:", url, err);
         throw err;
     }
 }
@@ -29,361 +23,436 @@ function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    
-    const icons = {
-        success: '✅',
-        error: '❌',
-        warning: '⚠️',
-        info: 'ℹ️'
-    };
-    
-    toast.innerHTML = `
-        <span style="font-size: 1.5em;">${icons[type] || '📢'}</span>
-        <span>${message}</span>
-    `;
+    const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+    toast.innerHTML = `<span style="font-size: 1.5em;">${icons[type] || '📢'}</span><span>${message}</span>`;
     container.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.style.animation = 'slideInRight 0.3s ease reverse';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    setTimeout(() => toast.remove(), 3000);
 }
 
 function formatDate(dateString) {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleString('vi-VN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+    return new Date(dateString).toLocaleString('vi-VN');
 }
 
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
+// ==================== CAMERA CONTROL ====================
+
+function selectSourceType(type) {
+    currentSourceType = type;
+    document.querySelectorAll('.source-tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelector(`[onclick*="${type}"]`).classList.add('active');
+    document.querySelectorAll('.source-config').forEach(config => config.classList.remove('active'));
+    document.getElementById(`config-${type}`).classList.add('active');
 }
 
-// ==================== STATS ====================
+async function scanWebcams() {
+    showToast('Đang quét camera...', 'info');
+    try {
+        const res = await fetchJson(API_BASE + '/api/cameras/available?max_check=5');
+        const listDiv = document.getElementById('webcamList');
+        listDiv.innerHTML = '';
+        
+        if (res.success && res.data && res.data.length > 0) {
+            listDiv.innerHTML = '<h4>Camera tìm thấy:</h4>';
+            res.data.forEach(cam => {
+                const div = document.createElement('div');
+                div.className = 'camera-item';
+                div.innerHTML = `
+                    <strong>📹 Camera ${cam.id}</strong>
+                    <span>${cam.resolution}</span>
+                    <button onclick="selectWebcam(${cam.id})" class="success">Chọn</button>
+                `;
+                listDiv.appendChild(div);
+            });
+            showToast(`Tìm thấy ${res.data.length} camera`, 'success');
+        } else {
+            listDiv.innerHTML = '<p>Không tìm thấy camera</p>';
+        }
+    } catch (e) {
+        showToast('Lỗi: ' + e.message, 'error');
+    }
+}
+
+function selectWebcam(id) {
+    document.getElementById('webcamId').value = id;
+    showToast(`Đã chọn Camera ${id}`, 'success');
+}
+
+function updatePhoneURL() {
+    const ip = document.getElementById('phoneIP').value;
+    document.getElementById('phoneURL').value = `http://${ip}:4747/video`;
+}
+
+function getSourceValue(type) {
+    switch(type) {
+        case 'webcam':
+            return document.getElementById('webcamId').value;
+        case 'phone':
+            return document.getElementById('phoneURL').value;
+        case 'video':
+            return document.getElementById('videoFile').dataset.uploadedPath || '';
+        case 'image':
+            return document.getElementById('imageFile').dataset.uploadedPath || '';
+        default:
+            return '';
+    }
+}
+
+async function testConnection() {
+    const sourceValue = getSourceValue(currentSourceType);
+    if (!sourceValue) {
+        showToast('Vui lòng nhập thông tin camera', 'warning');
+        return;
+    }
+    
+    showToast('Đang test...', 'info');
+    try {
+        const res = await fetchJson(API_BASE + '/api/cameras/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source_type: currentSourceType,
+                source_value: sourceValue
+            })
+        });
+        
+        if (res.success) {
+            showToast('✅ Kết nối thành công!', 'success');
+        } else {
+            showToast('❌ Thất bại: ' + res.message, 'error');
+        }
+    } catch (e) {
+        showToast('Lỗi: ' + e.message, 'error');
+    }
+}
+
+async function handleVideoUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    showToast('Đang upload...', 'info');
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+        const res = await fetch(API_BASE + '/api/upload/video', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await res.json();
+        
+        if (result.success) {
+            document.getElementById('videoFileName').textContent = `✅ ${result.data.filename}`;
+            document.getElementById('videoFile').dataset.uploadedPath = result.data.filepath;
+            showToast('Upload thành công!', 'success');
+        }
+    } catch (e) {
+        showToast('Lỗi: ' + e.message, 'error');
+    }
+}
+
+async function handleImageUpload(input) {
+    const files = input.files;
+    if (!files || files.length === 0) return;
+    
+    showToast(`Đang upload ${files.length} ảnh...`, 'info');
+    
+    for (let i = 0; i < files.length; i++) {
+        const formData = new FormData();
+        formData.append('file', files[i]);
+        
+        try {
+            const res = await fetch(API_BASE + '/api/upload/image', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await res.json();
+            
+            if (result.success && i === 0) {
+                document.getElementById('imageFile').dataset.uploadedPath = result.data.filepath;
+            }
+        } catch (e) {
+            console.error('Upload error:', e);
+        }
+    }
+    
+    document.getElementById('imageFileName').textContent = `✅ Đã upload ${files.length} ảnh`;
+    showToast('Upload thành công!', 'success');
+}
+
+async function showInstructions(type) {
+    try {
+        const res = await fetchJson(API_BASE + `/api/cameras/instructions/${type}`);
+        if (res.success) {
+            document.getElementById('instructionsContent').textContent = res.data.instructions;
+            document.getElementById('instructionsModal').classList.add('active');
+        }
+    } catch (e) {
+        showToast('Lỗi', 'error');
+    }
+}
+
+function closeInstructionsModal() {
+    document.getElementById('instructionsModal').classList.remove('active');
+}
+
+// ==================== DETECTION CONTROL ====================
+
+async function toggleDetection() {
+    if (detectionStatus && detectionStatus.running) {
+        await stopDetection();
+    } else {
+        await startDetection();
+    }
+}
+
+async function startDetection() {
+    const sourceValue = getSourceValue(currentSourceType);
+    if (!sourceValue) {
+        showToast('Vui lòng chọn camera!', 'warning');
+        return;
+    }
+    
+    showToast('Đang khởi động...', 'info');
+    
+    try {
+        const res = await fetchJson(API_BASE + '/api/detection/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source_type: currentSourceType,
+                source_value: sourceValue,
+                save_crops: document.getElementById('optSaveCrops').checked,
+                save_video: document.getElementById('optSaveVideo').checked
+            })
+        });
+        
+        if (res.success) {
+            showToast('✅ Detection đã khởi động!', 'success');
+            updateDetectionStatus({ running: true, source_type: currentSourceType, source_value: sourceValue });
+            startStatusPolling();
+        } else {
+            showToast('Không thể khởi động: ' + res.message, 'error');
+        }
+    } catch (e) {
+        showToast('Lỗi: ' + e.message, 'error');
+    }
+}
+
+async function stopDetection() {
+    showToast('Đang dừng...', 'info');
+    try {
+        const res = await fetchJson(API_BASE + '/api/detection/stop', { method: 'POST' });
+        if (res.success) {
+            showToast('✅ Đã dừng!', 'success');
+            updateDetectionStatus({ running: false });
+            stopStatusPolling();
+        }
+    } catch (e) {
+        showToast('Lỗi: ' + e.message, 'error');
+    }
+}
+
+function updateDetectionStatus(status) {
+    detectionStatus = status;
+    const indicator = document.getElementById('statusIndicator');
+    const statusInfo = document.getElementById('statusInfo');
+    const btn = document.getElementById('btnStartStop');
+    const liveIndicator = document.getElementById('liveIndicator');
+    const liveImg = document.getElementById('liveStreamView');
+    
+    if (status.running) {
+        if (liveImg) {
+            liveImg.style.display = 'block';
+            liveImg.src = API_BASE + "/video_feed?t=" + new Date().getTime();
+        }
+        
+        indicator.innerHTML = `<span class="status-dot online"></span><span class="status-text">ĐANG CHẠY</span>`;
+        statusInfo.innerHTML = `
+            <p><strong>Nguồn:</strong> ${status.source_type}</p>
+            <p><strong>Value:</strong> ${status.source_value}</p>
+            ${status.start_time ? `<p><strong>Bắt đầu:</strong> ${formatDate(status.start_time)}</p>` : ''}
+        `;
+        btn.className = 'danger btn-large';
+        btn.innerHTML = '⏹️ Dừng';
+        liveIndicator.innerHTML = `<span class="live-dot"></span>LIVE`;
+        liveIndicator.className = 'live-indicator online';
+    } else {
+        if (liveImg) liveImg.src = "../static/images/placeholder.png";
+        indicator.innerHTML = `<span class="status-dot offline"></span><span class="status-text">OFFLINE</span>`;
+        statusInfo.innerHTML = '<p>Chưa chạy</p>';
+        btn.className = 'success btn-large';
+        btn.innerHTML = '▶️ Bắt đầu';
+        liveIndicator.innerHTML = `<span class="live-dot"></span>OFFLINE`;
+        liveIndicator.className = 'live-indicator offline';
+    }
+}
+
+function startStatusPolling() {
+    if (statusCheckInterval) clearInterval(statusCheckInterval);
+    statusCheckInterval = setInterval(async () => {
+        try {
+            const res = await fetchJson(API_BASE + '/api/detection/status');
+            if (res.success) {
+                updateDetectionStatus(res.data);
+                if (res.data.running) loadStats();
+            }
+        } catch (e) {
+            console.error('Status check error:', e);
+        }
+    }, 2000);
+}
+
+function stopStatusPolling() {
+    if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
+    }
+}
+
+// ==================== DATA LOADING ====================
+
 async function loadStats() {
     try {
-        console.log("Fetching stats from", API_BASE + "/api/stats");
         const res = await fetchJson(API_BASE + "/api/stats");
-        
         if (res && res.success && res.data) {
             const d = res.data;
-            
-            // Update stats with animation
-            animateValue('totalDetections', 0, d.total || 0, 1000);
-            animateValue('uniquePlates', 0, d.unique || 0, 1000);
-            animateValue('todayCount', 0, d.today || 0, 1000);
-            animateValue('watchlistCount', 0, d.watchlist_count || 0, 1000);
-            animateValue('alertsCount', 0, d.alerts_pending || 0, 1000);
-            
-            // Update time
-            document.getElementById("currentTime").textContent = new Date().toLocaleString('vi-VN');
+            document.getElementById('totalDetections').textContent = d.total || 0;
+            document.getElementById('uniquePlates').textContent = d.unique || 0;
+            document.getElementById('todayCount').textContent = d.today || 0;
+            document.getElementById('watchlistCount').textContent = d.watchlist_count || 0;
+            document.getElementById('alertsCount').textContent = d.alerts_pending || 0;
         }
     } catch (e) {
         console.error("loadStats error", e);
     }
 }
 
-function animateValue(id, start, end, duration) {
-    const obj = document.getElementById(id);
-    if (!obj) return;
+async function loadDetections(limit = 50) {
+    const container = document.getElementById("detectionContent");
+    container.innerHTML = '<div class="loading">Đang tải...</div>';
     
-    const range = end - start;
-    const increment = range / (duration / 16);
-    let current = start;
-    
-    const timer = setInterval(() => {
-        current += increment;
-        if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
-            current = end;
-            clearInterval(timer);
+    try {
+        const res = await fetchJson(API_BASE + "/api/plates/recent?limit=" + limit);
+        container.innerHTML = "";
+        
+        if (res && res.success && res.data && res.count > 0) {
+            const grid = document.createElement("div");
+            grid.className = "plate-grid";
+            res.data.forEach((p) => grid.appendChild(makePlateCard(p)));
+            container.appendChild(grid);
+        } else {
+            container.innerHTML = '<div class="no-data">Không có dữ liệu</div>';
         }
-        obj.textContent = Math.round(current);
-    }, 16);
+    } catch (e) {
+        container.innerHTML = `<div class="error">❌ Lỗi: ${e.message}</div>`;
+    }
 }
 
-// ==================== PLATE CARDS ====================
 function makePlateCard(plate) {
     const div = document.createElement("div");
     div.className = "plate-card" + (plate.is_watchlist ? " watchlist" : "");
     
     const imageHtml = plate.image_path 
-        ? `<img src="${API_BASE}/api/image/${plate.id}" class="plate-image" alt="Plate image" onerror="this.style.display='none'" loading="lazy">` 
+        ? `<img src="${API_BASE}/api/image/${plate.id}" class="plate-image" alt="Plate" onerror="this.style.display='none'" loading="lazy">` 
         : "";
     
-    const confidence = plate.confidence !== undefined 
-        ? (plate.confidence * 100).toFixed(1) + "%" 
-        : "N/A";
+    const confidence = plate.confidence ? (plate.confidence * 100).toFixed(1) + "%" : "N/A";
     
-    const watchlistIcon = plate.is_watchlist ? '⚠️ ' : '';
-
     div.innerHTML = `
         ${plate.is_watchlist ? '<div class="watchlist-badge">⚠️ WATCHLIST</div>' : ""}
-        <div class="plate-number ${plate.is_watchlist ? "watchlist" : ""}">${watchlistIcon}${(plate.plate_number || "--").toUpperCase()}</div>
+        <div class="plate-number ${plate.is_watchlist ? "watchlist" : ""}">${(plate.plate_number || "").toUpperCase()}</div>
         ${imageHtml}
-        <div class="plate-info"><strong>🆔 ID:</strong><span>#${plate.id || ""}</span></div>
+        <div class="plate-info"><strong>🆔 ID:</strong><span>#${plate.id}</span></div>
         <div class="plate-info"><strong>🕐 Thời gian:</strong><span>${formatDate(plate.timestamp)}</span></div>
         <div class="plate-info"><strong>📊 Độ tin cậy:</strong><span>${confidence}</span></div>
         <div class="plate-info"><strong>📹 Nguồn:</strong><span>${plate.source || "N/A"}</span></div>
-        ${plate.frame_number ? `<div class="plate-info"><strong>🎬 Frame:</strong><span>${plate.frame_number}</span></div>` : ''}
         <div class="plate-actions">
-            ${plate.image_path ? `<button onclick="viewPlate(${plate.id})" class="info">🔎 Xem ảnh</button>` : ''}
+            ${plate.image_path ? `<button onclick="viewPlate(${plate.id})" class="info">🔎 Xem</button>` : ''}
             <button onclick="addToWatchlistQuick('${plate.plate_number}')" class="warning">➕ Watch</button>
-            <button class="danger" onclick="deletePlate(${plate.id})">🗑️ Xóa</button>
         </div>
     `;
     return div;
 }
 
+function viewPlate(id) {
+    window.open(API_BASE + "/api/image/" + id, "_blank");
+}
+
+async function searchPlates() {
+    const query = document.getElementById('searchBox').value.trim();
+    if (!query) {
+        loadDetections();
+        return;
+    }
+    
+    showToast('Đang tìm kiếm...', 'info');
+    try {
+        const res = await fetchJson(API_BASE + `/api/plates/search?query=${encodeURIComponent(query)}`);
+        const container = document.getElementById("detectionContent");
+        container.innerHTML = "";
+        
+        if (res && res.success && res.data && res.data.length > 0) {
+            const grid = document.createElement("div");
+            grid.className = "plate-grid";
+            res.data.forEach((p) => grid.appendChild(makePlateCard(p)));
+            container.appendChild(grid);
+            showToast(`Tìm thấy ${res.data.length} kết quả`, 'success');
+        } else {
+            container.innerHTML = '<div class="no-data">Không tìm thấy</div>';
+        }
+    } catch (e) {
+        showToast('Lỗi: ' + e.message, 'error');
+    }
+}
+
+// ==================== WATCHLIST ====================
+
+async function loadWatchlist() {
+    const container = document.getElementById("watchlistContent");
+    container.innerHTML = '<div class="loading">Đang tải...</div>';
+    
+    try {
+        const res = await fetchJson(API_BASE + "/api/watchlist");
+        container.innerHTML = "";
+        
+        if (res && res.success && res.data && res.count > 0) {
+            const grid = document.createElement("div");
+            grid.className = "plate-grid";
+            res.data.forEach((item) => grid.appendChild(makeWatchlistCard(item)));
+            container.appendChild(grid);
+        } else {
+            container.innerHTML = '<div class="no-data">Watchlist trống</div>';
+        }
+    } catch (e) {
+        container.innerHTML = `<div class="error">❌ Lỗi: ${e.message}</div>`;
+    }
+}
+
 function makeWatchlistCard(item) {
     const div = document.createElement("div");
     div.className = "plate-card watchlist-item";
-    
-    const alertIcons = {
-        'danger': '🚨',
-        'warning': '⚠️',
-        'info': 'ℹ️'
-    };
-    const alertIcon = alertIcons[item.alert_type] || '⚠️';
+    const alertIcons = { 'danger': '🚨', 'warning': '⚠️', 'info': 'ℹ️' };
+    const icon = alertIcons[item.alert_type] || '⚠️';
     
     div.innerHTML = `
-        <div class="watchlist-badge">${alertIcon}</div>
+        <div class="watchlist-badge">${icon}</div>
         <div class="plate-number watchlist">${item.plate_number.toUpperCase()}</div>
-        <div class="plate-info">
-            <strong>📝 Lý do:</strong>
-            <span>${item.reason || "Không có"}</span>
-        </div>
-        <div class="plate-info">
-            <strong>🏷️ Loại:</strong>
-            <span>${alertIcon} ${item.alert_type || 'warning'}</span>
-        </div>
-        <div class="plate-info">
-            <strong>📅 Ngày thêm:</strong>
-            <span>${formatDate(item.added_date)}</span>
-        </div>
-        <div class="plate-info">
-            <strong>🔍 Phát hiện:</strong>
-            <span>${item.detection_count || 0} lần</span>
-        </div>
-        <div class="plate-info">
-            <strong>👁️ Lần cuối:</strong>
-            <span>${item.last_seen ? formatDate(item.last_seen) : "Chưa xuất hiện"}</span>
-        </div>
+        <div class="plate-info"><strong>📝 Lý do:</strong><span>${item.reason || "Không có"}</span></div>
+        <div class="plate-info"><strong>🏷️ Loại:</strong><span>${icon} ${item.alert_type}</span></div>
+        <div class="plate-info"><strong>📅 Thêm:</strong><span>${formatDate(item.added_date)}</span></div>
+        <div class="plate-info"><strong>🔢 Phát hiện:</strong><span>${item.detection_count || 0} lần</span></div>
         <div class="plate-actions">
-            <button onclick="editWatchlistItem('${item.plate_number}', \`${item.reason || ''}\`, '${item.alert_type || 'warning'}')" class="warning">✏️ Sửa</button>
+            <button onclick="editWatchlistItem('${item.plate_number}', \`${item.reason || ''}\`, '${item.alert_type}')" class="warning">✏️ Sửa</button>
             <button class="danger" onclick="deleteWatchlistItem('${item.plate_number}')">🗑️ Xóa</button>
         </div>
     `;
     return div;
 }
 
-// ==================== DETECTIONS ====================
-async function loadDetections(limit = 50) {
-    const container = document.getElementById("detectionContent");
-    container.innerHTML = '<div class="loading">Đang tải dữ liệu</div>';
-    
-    try {
-        const res = await fetchJson(API_BASE + "/api/plates/recent?limit=" + limit);
-        container.innerHTML = "";
-        
-        if (res && res.success) {
-            if (!res.data || res.count === 0) {
-                container.innerHTML = '<div class="no-data">Không có bản ghi nào</div>';
-                return;
-            }
-            
-            const grid = document.createElement("div");
-            grid.className = "plate-grid";
-            res.data.forEach((p) => grid.appendChild(makePlateCard(p)));
-            container.appendChild(grid);
-            
-            showToast(`Đã tải ${res.count} bản ghi`, 'success');
-        } else {
-            container.innerHTML = `<div class="error">❌ Lỗi khi tải dữ liệu</div>`;
-        }
-    } catch (e) {
-        container.innerHTML = `<div class="error">❌ Không thể kết nối đến API: ${e.message}</div>`;
-    }
-}
-
-const debouncedSearch = debounce(async function() {
-    const query = document.getElementById("searchBox").value.trim();
-    const container = document.getElementById("detectionContent");
-    
-    if (!query) {
-        loadDetections();
-        return;
-    }
-    
-    // Check cache
-    if (searchCache.has(query)) {
-        renderSearchResults(searchCache.get(query), query);
-        return;
-    }
-    
-    container.innerHTML = '<div class="loading">Đang tìm kiếm</div>';
-    
-    try {
-        const res = await fetchJson(API_BASE + "/api/plates/search?q=" + encodeURIComponent(query));
-        
-        // Cache result
-        searchCache.set(query, res);
-        renderSearchResults(res, query);
-    } catch (e) {
-        container.innerHTML = `<div class="error">❌ Lỗi: ${e.message}</div>`;
-    }
-}, 500);
-
-function searchPlates() {
-    debouncedSearch();
-}
-
-function renderSearchResults(res, query) {
-    const container = document.getElementById("detectionContent");
-    container.innerHTML = "";
-    
-    if (res && res.success) {
-        if (!res.data || res.count === 0) {
-            container.innerHTML = `<div class="no-data">Không tìm thấy kết quả cho "${query}"</div>`;
-            return;
-        }
-        
-        const grid = document.createElement("div");
-        grid.className = "plate-grid";
-        res.data.forEach((p) => grid.appendChild(makePlateCard(p)));
-        container.appendChild(grid);
-        
-        showToast(`Tìm thấy ${res.count} kết quả`, 'success');
-    }
-}
-
-function clearSearch() {
-    document.getElementById("searchBox").value = "";
-    document.getElementById("advancedSearch").classList.remove("active");
-    searchCache.clear();
-    loadDetections();
-}
-
-function toggleAdvancedSearch() {
-    const panel = document.getElementById("advancedSearch");
-    panel.classList.toggle("active");
-}
-
-function applyAdvancedSearch() {
-    const dateFrom = document.getElementById("dateFrom").value;
-    const dateTo = document.getElementById("dateTo").value;
-    const minConf = document.getElementById("minConfidence").value;
-    const status = document.getElementById("statusFilter").value;
-    
-    showToast("Tính năng Advanced Search đang phát triển", "info");
-    console.log("Advanced search params:", { dateFrom, dateTo, minConf, status });
-}
-
-async function filterDetections(mode) {
-    document.querySelectorAll(".filter-btn").forEach((b) => b.classList.remove("active"));
-    event?.target?.classList?.add("active");
-    currentFilter = mode;
-    
-    const container = document.getElementById("detectionContent");
-    container.innerHTML = '<div class="loading">Đang tải dữ liệu</div>';
-    
-    try {
-        if (mode === "today") {
-            const res = await fetchJson(API_BASE + "/api/stats/today");
-            container.innerHTML = "";
-            
-            if (res && res.success && res.data && res.count > 0) {
-                const grid = document.createElement("div");
-                grid.className = "plate-grid";
-                res.data.forEach((p) => grid.appendChild(makePlateCard(p)));
-                container.appendChild(grid);
-                showToast(`Có ${res.count} phát hiện hôm nay`, 'success');
-            } else {
-                container.innerHTML = '<div class="no-data">Chưa có phát hiện nào hôm nay</div>';
-            }
-        } else if (mode === "watchlist") {
-            const res = await fetchJson(API_BASE + "/api/plates/recent?limit=100");
-            container.innerHTML = "";
-            
-            if (res && res.success && res.data) {
-                const watchlistPlates = res.data.filter(p => p.is_watchlist);
-                
-                if (watchlistPlates.length > 0) {
-                    const grid = document.createElement("div");
-                    grid.className = "plate-grid";
-                    watchlistPlates.forEach((p) => grid.appendChild(makePlateCard(p)));
-                    container.appendChild(grid);
-                    showToast(`Có ${watchlistPlates.length} biển số trong watchlist`, 'warning');
-                } else {
-                    container.innerHTML = '<div class="no-data">Không có phát hiện watchlist</div>';
-                }
-            }
-        } else if (mode === "high-confidence") {
-            const res = await fetchJson(API_BASE + "/api/plates/recent?limit=100");
-            container.innerHTML = "";
-            
-            if (res && res.success && res.data) {
-                const highConfPlates = res.data.filter(p => p.confidence >= 0.8);
-                
-                if (highConfPlates.length > 0) {
-                    const grid = document.createElement("div");
-                    grid.className = "plate-grid";
-                    highConfPlates.forEach((p) => grid.appendChild(makePlateCard(p)));
-                    container.appendChild(grid);
-                    showToast(`Có ${highConfPlates.length} phát hiện độ tin cậy cao`, 'success');
-                } else {
-                    container.innerHTML = '<div class="no-data">Không có phát hiện độ tin cậy cao</div>';
-                }
-            }
-        } else {
-            loadDetections();
-        }
-    } catch (e) {
-        container.innerHTML = `<div class="error">❌ Lỗi: ${e.message}</div>`;
-    }
-}
-
-function viewPlate(id) {
-    if (!id) {
-        showToast("Không có ảnh", "error");
-        return;
-    }
-    window.open(API_BASE + "/api/image/" + id, "_blank");
-}
-
-async function deletePlate(id) {
-    if (!confirm("Xác nhận xóa bản ghi #" + id + "?")) return;
-    
-    try {
-        const res = await fetchJson(API_BASE + "/api/plates/" + id + "?reason=Xóa từ dashboard", { 
-            method: "DELETE" 
-        });
-        
-        showToast(res.message || "Đã xóa thành công", "success");
-        await loadStats();
-        
-        // Refresh current view
-        if (currentFilter === 'all') {
-            await loadDetections();
-        } else {
-            filterDetections(currentFilter);
-        }
-    } catch (e) {
-        showToast("Xóa thất bại: " + e.message, "error");
-    }
+function showAddWatchlistModal() {
+    document.getElementById("wlPlateNumber").value = '';
+    document.getElementById("wlReason").value = '';
+    document.getElementById("addWatchlistModal").classList.add("active");
 }
 
 function addToWatchlistQuick(plateNumber) {
@@ -391,50 +460,45 @@ function addToWatchlistQuick(plateNumber) {
     showAddWatchlistModal();
 }
 
-// ==================== WATCHLIST ====================
-async function loadWatchlist() {
-    const container = document.getElementById("watchlistContent");
-    container.innerHTML = '<div class="loading">Đang tải watchlist</div>';
+async function addWatchlistSubmit(event) {
+    event.preventDefault();
+    const plateNumber = document.getElementById("wlPlateNumber").value.trim().toUpperCase();
+    const reason = document.getElementById("wlReason").value.trim();
+    const alertType = document.getElementById("wlAlertType").value;
     
     try {
-        const res = await fetchJson(API_BASE + "/api/watchlist");
-        container.innerHTML = "";
+        const res = await fetchJson(API_BASE + "/api/watchlist", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plate_number: plateNumber, reason: reason, alert_type: alertType })
+        });
         
-        if (res && res.success) {
-            if (!res.data || res.count === 0) {
-                container.innerHTML = '<div class="no-data">Watchlist trống</div>';
-                return;
-            }
-            
-            const grid = document.createElement("div");
-            grid.className = "plate-grid";
-            res.data.forEach((item) => grid.appendChild(makeWatchlistCard(item)));
-            container.appendChild(grid);
-            
-            showToast(`Có ${res.count} biển số trong watchlist`, 'info');
+        if (res.success) {
+            showToast(`Đã thêm ${plateNumber}`, "success");
+            closeModal();
+            loadWatchlist();
+            loadStats();
+        } else {
+            showToast("Thất bại: " + res.message, "error");
         }
     } catch (e) {
-        container.innerHTML = `<div class="error">❌ Lỗi: ${e.message}</div>`;
+        showToast("Lỗi: " + e.message, "error");
     }
 }
 
 async function deleteWatchlistItem(plateNumber) {
-    if (!confirm(`Xác nhận xóa "${plateNumber}" khỏi watchlist?`)) return;
-    
+    if (!confirm(`Xác nhận xóa "${plateNumber}"?`)) return;
     try {
-        const res = await fetchJson(API_BASE + "/api/watchlist/" + encodeURIComponent(plateNumber), {
+        const res = await fetchJson(API_BASE + "/api/watchlist?plate_number=" + encodeURIComponent(plateNumber), {
             method: "DELETE",
         });
-        
         if (res.success) {
-            showToast(res.message || "Đã xóa khỏi watchlist", "success");
+            showToast("Đã xóa", "success");
             loadWatchlist();
             loadStats();
-        } else {
-            showToast("Xóa thất bại: " + res.message, "error");
         }
     } catch (e) {
-        showToast("Lỗi khi xóa: " + e.message, "error");
+        showToast("Lỗi: " + e.message, "error");
     }
 }
 
@@ -447,70 +511,98 @@ function editWatchlistItem(plateNumber, reason, alertType) {
 
 async function editWatchlistSubmit(event) {
     event.preventDefault();
-    
     const plateNumber = document.getElementById("editPlateNumber").value;
     const reason = document.getElementById("editReason").value.trim();
     const alertType = document.getElementById("editAlertType").value;
     
     try {
-        // Delete old entry
-        await fetchJson(API_BASE + "/api/watchlist/" + encodeURIComponent(plateNumber), { 
-            method: "DELETE" 
-        });
-        
-        // Add new entry with updated info
         const res = await fetchJson(API_BASE + "/api/watchlist", {
-            method: "POST",
+            method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                plate_number: plateNumber,
-                reason: reason,
-                alert_type: alertType
-            })
+            body: JSON.stringify({ plate_number: plateNumber, reason: reason, alert_type: alertType })
         });
         
         if (res.success) {
-            showToast("Đã cập nhật watchlist", "success");
+            showToast("Đã cập nhật", "success");
             closeEditModal();
             loadWatchlist();
-            loadStats();
         }
     } catch (e) {
-        showToast("Cập nhật thất bại: " + e.message, "error");
+        showToast("Lỗi: " + e.message, "error");
     }
 }
 
+async function importWatchlist() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt,.csv';
+    
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+            const res = await fetch(API_BASE + "/api/watchlist/import", {
+                method: 'POST',
+                body: formData
+            });
+            const result = await res.json();
+            if (result.success) {
+                showToast(result.message, 'success');
+                loadWatchlist();
+                loadStats();
+            } else {
+                showToast("Import thất bại: " + result.message, 'error');
+            }
+        } catch (e) {
+            showToast("Lỗi: " + e.message, 'error');
+        }
+    };
+    input.click();
+}
+
+async function exportWatchlist() {
+    window.location.href = API_BASE + "/api/watchlist/export?format=txt";
+    showToast("Đang tải file ...", "success");
+}
+
 // ==================== ALERTS ====================
+
 async function loadAlerts() {
     const container = document.getElementById("alertsContent");
-    container.innerHTML = '<div class="loading">Đang tải cảnh báo</div>';
+    container.innerHTML = '<div class="loading">Đang tải...</div>';
     
     try {
         const res = await fetchJson(API_BASE + "/api/alerts");
         container.innerHTML = "";
         
-        if (res && res.success) {
-            if (!res.data || res.count === 0) {
-                container.innerHTML = '<div class="no-data">Không có cảnh báo nào</div>';
-                return;
-            }
-            
+        if (res && res.success && res.data && res.count > 0) {
             res.data.forEach(alert => {
-                const alertCard = document.createElement("div");
-                alertCard.className = "alert-card danger";
-                alertCard.innerHTML = `
+                const div = document.createElement("div");
+                div.className = "alert-card danger";
+                
+                const statusBadge = alert.resolved 
+                    ? '<span style="color: var(--success)">✅ Đã xử lý</span>'
+                    : '<span style="color: var(--danger)">⚠️ Chưa xử lý</span>';
+                
+                div.innerHTML = `
                     <div class="alert-content">
                         <h4>🚨 ${alert.plate_number}</h4>
                         <p><strong>Loại:</strong> ${alert.alert_type}</p>
                         <p>${alert.message}</p>
+                        <p><strong>Trạng thái:</strong> ${statusBadge}</p>
+                        ${alert.resolved_at ? `<p><strong>Xử lý lúc:</strong> ${formatDate(alert.resolved_at)}</p>` : ''}
                         <small>🕐 ${formatDate(alert.timestamp)}</small>
                     </div>
-                    <button class="success" onclick="resolveAlert(${alert.id})">✅ Xử lý</button>
+                    ${!alert.resolved ? `<button class="success" onclick="resolveAlert(${alert.id})">✅ Xử lý</button>` : ''}
                 `;
-                container.appendChild(alertCard);
+                container.appendChild(div);
             });
-            
-            showToast(`Có ${res.count} cảnh báo chưa xử lý`, 'warning');
+        } else {
+            container.innerHTML = '<div class="no-data">Không có cảnh báo</div>';
         }
     } catch (e) {
         container.innerHTML = `<div class="error">❌ Lỗi: ${e.message}</div>`;
@@ -518,22 +610,24 @@ async function loadAlerts() {
 }
 
 async function resolveAlert(id) {
-    showToast("Tính năng đang phát triển", "info");
+    try {
+        const res = await fetchJson(API_BASE + `/api/alerts/${id}/resolve`, {
+            method: 'PUT',
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ resolved_by: 'dashboard_user' })
+        });
+        
+        if (res.success) {
+            showToast("Đã xử lý", "success");
+            loadAlerts();
+            loadStats();
+        }
+    } catch (e) {
+        showToast("Lỗi: " + e.message, "error");
+    }
 }
 
-function resolveAllAlerts() {
-    showToast("Tính năng đang phát triển", "info");
-}
-
-function clearAlerts() {
-    showToast("Tính năng đang phát triển", "info");
-}
-
-// ==================== MODALS ====================
-function showAddWatchlistModal() {
-    document.getElementById("addWatchlistForm").reset();
-    document.getElementById("addWatchlistModal").classList.add("active");
-}
+// ==================== MODAL & TAB ====================
 
 function closeModal() {
     document.getElementById("addWatchlistModal").classList.remove("active");
@@ -543,199 +637,14 @@ function closeEditModal() {
     document.getElementById("editWatchlistModal").classList.remove("active");
 }
 
-async function addWatchlistSubmit(event) {
-    event.preventDefault();
-    
-    const plateNumber = document.getElementById("wlPlateNumber").value.trim().toUpperCase();
-    const reason = document.getElementById("wlReason").value.trim();
-    const alertType = document.getElementById("wlAlertType").value;
-    
-    if (!plateNumber) {
-        showToast("Vui lòng nhập biển số", "error");
-        return;
-    }
-    
-    try {
-        const res = await fetchJson(API_BASE + "/api/watchlist", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                plate_number: plateNumber,
-                reason: reason,
-                alert_type: alertType
-            })
-        });
-        
-        if (res.success) {
-            showToast(`Đã thêm ${plateNumber} vào watchlist`, "success");
-            closeModal();
-            loadWatchlist();
-            loadStats();
-        } else {
-            showToast("Thêm thất bại: " + res.message, "error");
-        }
-    } catch (e) {
-        showToast("Lỗi khi thêm: " + e.message, "error");
-    }
-}
-
-// Close modals when clicking outside
-window.onclick = function(event) {
-    const addModal = document.getElementById("addWatchlistModal");
-    const editModal = document.getElementById("editWatchlistModal");
-    
-    if (event.target == addModal) {
-        closeModal();
-    }
-    if (event.target == editModal) {
-        closeEditModal();
-    }
-};
-
-// ==================== TAB SWITCHING ====================
 function switchTab(tab) {
+    currentTab = tab;
     document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
     document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
     document.querySelector(`.tab[onclick*="${tab}"]`)?.classList?.add("active");
     document.getElementById(tab + "-section")?.classList?.add("active");
     
-    currentTab = tab;
-    
-    // Load data for active tab
     if (tab === "detection") loadDetections();
     if (tab === "watchlist") loadWatchlist();
     if (tab === "alerts") loadAlerts();
 }
-
-// ==================== THEME TOGGLE ====================
-function toggleTheme() {
-    const currentTheme = document.documentElement.getAttribute('data-theme');
-    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-    
-    document.documentElement.setAttribute('data-theme', newTheme);
-    localStorage.setItem('theme', newTheme);
-    
-    const btn = document.querySelector('.theme-toggle-btn');
-    if (btn) {
-        btn.textContent = newTheme === 'light' ? '🌙 Dark' : '☀️ Light';
-    }
-    
-    showToast(`Đã chuyển sang ${newTheme === 'light' ? 'Light' : 'Dark'} mode`, 'info');
-}
-
-// ==================== MISC FUNCTIONS ====================
-function exportData() {
-    showToast("Tính năng Export đang phát triển", "info");
-}
-
-function showSettings() {
-    showToast("Cài đặt đang phát triển", "info");
-}
-
-function importWatchlist() {
-    showToast("Import đang phát triển", "info");
-}
-
-function exportWatchlist() {
-    showToast("Export watchlist đang phát triển", "info");
-}
-
-// ==================== AUTO REFRESH ====================
-function startAutoRefresh(interval = 30000) {
-    if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-    }
-    
-    autoRefreshInterval = setInterval(() => {
-        console.log("Auto-refreshing stats...");
-        loadStats();
-        
-        // Refresh current tab
-        if (currentTab === 'detection' && currentFilter === 'all') {
-            loadDetections();
-        }
-    }, interval);
-}
-
-function stopAutoRefresh() {
-    if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-        autoRefreshInterval = null;
-    }
-}
-
-// ==================== KEYBOARD SHORTCUTS ====================
-document.addEventListener('keydown', function(e) {
-    // Ctrl/Cmd + K: Focus search
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        document.getElementById('searchBox').focus();
-    }
-    
-    // Ctrl/Cmd + R: Refresh
-    if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
-        e.preventDefault();
-        loadStats();
-        if (currentTab === 'detection') loadDetections();
-        if (currentTab === 'watchlist') loadWatchlist();
-        if (currentTab === 'alerts') loadAlerts();
-    }
-    
-    // Escape: Close modals
-    if (e.key === 'Escape') {
-        closeModal();
-        closeEditModal();
-    }
-});
-
-// ==================== INITIALIZATION ====================
-document.addEventListener("DOMContentLoaded", () => {
-    console.log("🚀 LPR Dashboard initialized");
-    console.log("API Base:", API_BASE);
-    
-    // Load saved theme
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        const btn = document.querySelector('.theme-toggle-btn');
-        if (btn) {
-            btn.textContent = savedTheme === 'light' ? '🌙 Dark' : '☀️ Light';
-        }
-    }
-    
-    // Initial load
-    loadStats();
-    loadDetections();
-    
-    // Set current date for advanced search
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById("dateTo").value = today;
-    
-    // Start auto-refresh
-    startAutoRefresh(30000); // 30 seconds
-    
-    // Log shortcuts
-    console.log("⌨️ Keyboard Shortcuts:");
-    console.log("  Ctrl/Cmd + K: Focus search");
-    console.log("  Ctrl/Cmd + R: Refresh");
-    console.log("  Escape: Close modals");
-    
-    showToast("Dashboard đã sẵn sàng! 🚀", "success");
-});
-
-// Handle page visibility
-document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-        stopAutoRefresh();
-        console.log("⏸️ Auto-refresh paused (tab hidden)");
-    } else {
-        startAutoRefresh();
-        loadStats();
-        console.log("▶️ Auto-refresh resumed");
-    }
-});
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
-    stopAutoRefresh();
-});

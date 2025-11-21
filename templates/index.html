@@ -15,204 +15,228 @@
       <div class="header">
         <div class="header-top">
           <h1>
-            🚗 Dashboard LPR
-            <span class="live-indicator">
+            Dashboard LPR
+            <span class="live-indicator" id="liveIndicator">
               <span class="live-dot"></span>
-              LIVE
+              OFFLINE
             </span>
           </h1>
           <div class="header-actions">
-            <button onclick="exportData()" class="success">📥 Export</button>
-            <button onclick="showSettings()">⚙️ Cài đặt</button>
-            <button onclick="toggleTheme()" class="theme-toggle-btn">🌙 Dark</button>
+            <button onclick="loadStats()" class="success">🔄 Làm mới</button>
           </div>
         </div>
 
+        <!-- TABS - CHỈ GIỮ 4 TAB -->
         <div class="tabs">
-          <button class="tab active" onclick="switchTab('detection')">🔍 Phát hiện</button>
+          <button class="tab active" onclick="switchTab('camera')">📹 Camera</button>
+          <button class="tab" onclick="switchTab('detection')">🔍 Phát hiện</button>
           <button class="tab" onclick="switchTab('watchlist')">👁️ Watchlist</button>
           <button class="tab" onclick="switchTab('alerts')">🚨 Cảnh báo</button>
-          <button class="tab" onclick="switchTab('analytics')">📊 Phân tích</button>
         </div>
       </div>
 
       <!-- STATS CARDS -->
       <div class="stats-container">
-        <div class="stat-card" style="animation-delay: 0.1s">
+        <div class="stat-card">
           <div class="stat-icon">🎯</div>
-          <div class="stat-value">
-            <span id="totalDetections">0</span>
-            <span class="stat-change">↑ 12%</span>
-          </div>
+          <div class="stat-value"><span id="totalDetections">0</span></div>
           <div class="stat-label">Tổng phát hiện</div>
-          <div class="stat-footer">Từ đầu tháng</div>
         </div>
 
-        <div class="stat-card" style="animation-delay: 0.2s">
+        <div class="stat-card">
           <div class="stat-icon">🚙</div>
-          <div class="stat-value">
-            <span id="uniquePlates">0</span>
-          </div>
+          <div class="stat-value"><span id="uniquePlates">0</span></div>
           <div class="stat-label">Biển số độc nhất</div>
-          <div class="stat-footer">Không trùng lặp</div>
         </div>
 
-        <div class="stat-card" style="animation-delay: 0.3s">
+        <div class="stat-card">
           <div class="stat-icon">📅</div>
-          <div class="stat-value">
-            <span id="todayCount">0</span>
-            <span class="stat-change" style="color: var(--success)">↑ 5</span>
-          </div>
+          <div class="stat-value"><span id="todayCount">0</span></div>
           <div class="stat-label">Hôm nay</div>
-          <div class="stat-footer" id="currentTime"></div>
         </div>
 
-        <div class="stat-card" style="animation-delay: 0.4s">
+        <div class="stat-card">
           <div class="stat-icon">👁️</div>
-          <div class="stat-value">
-            <span id="watchlistCount">0</span>
-          </div>
+          <div class="stat-value"><span id="watchlistCount">0</span></div>
           <div class="stat-label">Watchlist</div>
-          <div class="stat-footer">Đang theo dõi</div>
         </div>
 
-        <div class="stat-card" style="animation-delay: 0.5s">
+        <div class="stat-card">
           <div class="stat-icon">🚨</div>
-          <div class="stat-value">
-            <span id="alertsCount" style="color: var(--danger)">0</span>
-          </div>
+          <div class="stat-value"><span id="alertsCount" style="color: var(--danger)">0</span></div>
           <div class="stat-label">Cảnh báo</div>
-          <div class="stat-footer">Chưa xử lý</div>
+        </div>
+      </div>
+
+      <!-- TAB: CAMERA - CHỈ 4 LOẠI -->
+      <div id="camera-section" class="section active">
+        <h2>📹 Quản Lý Camera</h2>
+
+        <!-- Video Preview -->
+        <div class="video-viewport">
+          <img id="liveStreamView" src="../static/images/placeholder.png" alt="Camera View" />
+        </div>
+
+        <!-- Detection Status -->
+        <div class="camera-status-panel">
+          <div class="status-left">
+            <div class="status-indicator" id="statusIndicator">
+              <span class="status-dot offline"></span>
+              <span class="status-text">OFFLINE</span>
+            </div>
+            <div class="status-info" id="statusInfo">
+              <p>Chưa có camera nào đang chạy</p>
+            </div>
+          </div>
+          <div class="status-right">
+            <button id="btnStartStop" onclick="toggleDetection()" class="success btn-large">▶️ Bắt đầu phát hiện</button>
+          </div>
+        </div>
+
+        <!-- Camera Selection - CHỈ 4 LOẠI -->
+        <div class="camera-control-panel">
+          <h3>🎥 Chọn nguồn Camera</h3>
+
+          <div class="source-type-tabs">
+            <button class="source-tab active" onclick="selectSourceType('webcam')">📹 Webcam</button>
+            <button class="source-tab" onclick="selectSourceType('phone')">📱 Phone</button>
+            <button class="source-tab" onclick="selectSourceType('video')">🎬 Video</button>
+            <button class="source-tab" onclick="selectSourceType('image')">🖼️ Image</button>
+          </div>
+
+          <!-- Config Area -->
+          <div class="source-config-area">
+            <!-- Webcam -->
+            <div id="config-webcam" class="source-config active">
+              <h4>📹 Webcam</h4>
+              <div class="form-group">
+                <label>Camera ID</label>
+                <select id="webcamId">
+                  <option value="0">Camera 0 (Mặc định)</option>
+                  <option value="1">Camera 1</option>
+                  <option value="2">Camera 2</option>
+                </select>
+              </div>
+              <button onclick="scanWebcams()" class="info">🔍 Quét Camera</button>
+              <div id="webcamList"></div>
+              <div class="config-actions">
+                <button onclick="testConnection()" class="warning">🔍 Test</button>
+                <button onclick="showInstructions('webcam')" class="info">❓ Hướng dẫn</button>
+              </div>
+            </div>
+
+            <!-- Phone -->
+            <div id="config-phone" class="source-config">
+              <h4>📱 Phone (DroidCam)</h4>
+              <div class="form-group">
+                <label>IP Address</label>
+                <input type="text" id="phoneIP" placeholder="192.168.1.100" value="192.168.1.100" onchange="updatePhoneURL()" />
+              </div>
+              <div class="form-group">
+                <label>URL</label>
+                <input type="text" id="phoneURL" placeholder="http://192.168.1.100:4747/video" />
+              </div>
+              <div class="config-actions">
+                <button onclick="testConnection()" class="warning">🔍 Test</button>
+                <button onclick="showInstructions('phone')" class="info">❓ Hướng dẫn</button>
+              </div>
+            </div>
+
+            <!-- Video -->
+            <div id="config-video" class="source-config">
+              <h4>🎬 Video File</h4>
+              <div class="form-group">
+                <input type="file" id="videoFile" accept=".mp4,.avi,.mov,.mkv" onchange="handleVideoUpload(this)" style="display: none" />
+                <button onclick="document.getElementById('videoFile').click()" class="success">📤 Chọn Video</button>
+                <div id="videoFileName"></div>
+              </div>
+              <div class="config-actions">
+                <button onclick="testConnection()" class="warning">🔍 Test</button>
+                <button onclick="showInstructions('video')" class="info">❓ Hướng dẫn</button>
+              </div>
+            </div>
+
+            <!-- Image -->
+            <div id="config-image" class="source-config">
+              <h4>🖼️ Image</h4>
+              <div class="form-group">
+                <input type="file" id="imageFile" accept=".jpg,.jpeg,.png,.bmp" multiple onchange="handleImageUpload(this)" style="display: none" />
+                <button onclick="document.getElementById('imageFile').click()" class="success">📤 Chọn Ảnh</button>
+                <div id="imageFileName"></div>
+              </div>
+              <div class="config-actions">
+                <button onclick="testConnection()" class="warning">🔍 Test</button>
+                <button onclick="showInstructions('image')" class="info">❓ Hướng dẫn</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Options -->
+          <div class="detection-options">
+            <h4>⚙️ Tùy chọn</h4>
+            <label><input type="checkbox" id="optSaveCrops" checked /> 💾 Lưu ảnh biển số</label>
+            <label><input type="checkbox" id="optSaveVideo" /> 🎥 Lưu video output</label>
+          </div>
         </div>
       </div>
 
       <!-- TAB: DETECTION -->
-      <div id="detection-section" class="section active">
+      <div id="detection-section" class="section">
         <h2>🔍 Biển số đã phát hiện</h2>
-
         <div class="controls">
-          <input
-            type="text"
-            class="search-box"
-            id="searchBox"
-            placeholder="🔎 Tìm kiếm biển số... (VD: 29A, 51B-12345)"
-            onkeypress="if(event.key==='Enter') searchPlates()"
-          />
-          <button onclick="searchPlates()">🔍 Tìm kiếm</button>
-          <button onclick="toggleAdvancedSearch()">🎯 Nâng cao</button>
+          <input type="text" class="search-box" id="searchBox" placeholder="🔎 Tìm kiếm biển số..." />
+          <button onclick="searchPlates()">🔍 Tìm</button>
           <button class="success" onclick="loadDetections()">🔄 Làm mới</button>
-          <button onclick="clearSearch()">❌ Xóa bộ lọc</button>
         </div>
-
-        <!-- Advanced Search Panel -->
-        <div class="search-advanced" id="advancedSearch">
-          <div class="search-grid">
-            <div class="form-group">
-              <label>Từ ngày</label>
-              <input type="date" id="dateFrom" class="search-box" />
-            </div>
-            <div class="form-group">
-              <label>Đến ngày</label>
-              <input type="date" id="dateTo" class="search-box" />
-            </div>
-            <div class="form-group">
-              <label>Độ tin cậy tối thiểu (%)</label>
-              <input type="number" id="minConfidence" class="search-box" min="0" max="100" value="0" placeholder="0-100%" />
-            </div>
-            <div class="form-group">
-              <label>Trạng thái</label>
-              <select id="statusFilter" class="search-box">
-                <option value="all">Tất cả</option>
-                <option value="watchlist">Watchlist</option>
-                <option value="normal">Bình thường</option>
-              </select>
-            </div>
-          </div>
-          <button onclick="applyAdvancedSearch()" style="margin-top: 15px">🎯 Áp dụng bộ lọc</button>
-        </div>
-
-        <div class="filters">
-          <button class="filter-btn active" onclick="filterDetections('all')">Tất cả</button>
-          <button class="filter-btn" onclick="filterDetections('today')">Hôm nay</button>
-          <button class="filter-btn" onclick="filterDetections('watchlist')">Watchlist</button>
-          <button class="filter-btn" onclick="filterDetections('high-confidence')">Độ tin cậy cao</button>
-        </div>
-
-        <div id="detectionContent">
-          <div class="loading">Đang tải dữ liệu</div>
-        </div>
-
-        <div class="pagination" id="detectionPagination"></div>
+        <div id="detectionContent"><div class="loading">Đang tải...</div></div>
       </div>
 
       <!-- TAB: WATCHLIST -->
       <div id="watchlist-section" class="section">
-        <h2>👁️ Danh sách theo dõi</h2>
-
+        <h2>👁️ Watchlist</h2>
         <div class="controls">
-          <button onclick="showAddWatchlistModal()">➕ Thêm biển số</button>
-          <button onclick="importWatchlist()">📥 Import từ file</button>
+          <button onclick="showAddWatchlistModal()">➕ Thêm</button>
+          <button onclick="importWatchlist()">📥 Import</button>
+          <button onclick="exportWatchlist()" class="warning">📤 Export</button>
           <button class="success" onclick="loadWatchlist()">🔄 Làm mới</button>
-          <button class="warning" onclick="exportWatchlist()">📤 Export</button>
         </div>
-
-        <div id="watchlistContent">
-          <div class="loading">Đang tải watchlist</div>
-        </div>
+        <div id="watchlistContent"><div class="loading">Đang tải...</div></div>
       </div>
 
       <!-- TAB: ALERTS -->
       <div id="alerts-section" class="section">
-        <h2>🚨 Cảnh báo hệ thống</h2>
-
+        <h2>🚨 Cảnh báo</h2>
         <div class="controls">
           <button class="success" onclick="loadAlerts()">🔄 Làm mới</button>
-          <button onclick="resolveAllAlerts()">✅ Xử lý tất cả</button>
-          <button class="danger" onclick="clearAlerts()">🗑️ Xóa đã xử lý</button>
         </div>
-
-        <div id="alertsContent">
-          <div class="loading">Đang tải cảnh báo</div>
-        </div>
-      </div>
-
-      <!-- TAB: ANALYTICS -->
-      <div id="analytics-section" class="section">
-        <h2>📊 Phân tích & Thống kê</h2>
-
-        <div class="analytics-grid">
-          <div class="chart-card">
-            <h3>📈 Phát hiện theo giờ</h3>
-            <div id="hourlyChart" class="chart-placeholder">
-              <div class="no-data">Biểu đồ đang phát triển</div>
-            </div>
-          </div>
-
-          <div class="chart-card">
-            <h3>🏆 Top biển số</h3>
-            <div id="topPlatesChart" class="chart-placeholder">
-              <div class="no-data">Biểu đồ đang phát triển</div>
-            </div>
-          </div>
-        </div>
+        <div id="alertsContent"><div class="loading">Đang tải...</div></div>
       </div>
     </div>
 
-    <!-- MODAL: Add to Watchlist -->
+    <!-- MODAL: Instructions -->
+    <div id="instructionsModal" class="modal">
+      <div class="modal-content">
+        <h3>❓ Hướng dẫn</h3>
+        <pre id="instructionsContent"></pre>
+        <button onclick="closeInstructionsModal()">Đóng</button>
+      </div>
+    </div>
+
+    <!-- MODAL: Add Watchlist -->
     <div id="addWatchlistModal" class="modal">
       <div class="modal-content">
-        <h3>➕ Thêm vào Watchlist</h3>
-        <form id="addWatchlistForm" onsubmit="addWatchlistSubmit(event)">
+        <h3>➕ Thêm Watchlist</h3>
+        <form onsubmit="addWatchlistSubmit(event)">
           <div class="form-group">
-            <label for="wlPlateNumber">Biển số xe *</label>
-            <input type="text" id="wlPlateNumber" placeholder="VD: 29A-12345" required />
+            <label>Biển số *</label>
+            <input type="text" id="wlPlateNumber" required />
           </div>
           <div class="form-group">
-            <label for="wlReason">Lý do</label>
-            <textarea id="wlReason" rows="3" placeholder="VD: Xe nghi vấn, Xe VIP, Vi phạm thường xuyên..."></textarea>
+            <label>Lý do</label>
+            <textarea id="wlReason" rows="3"></textarea>
           </div>
           <div class="form-group">
-            <label for="wlAlertType">Loại cảnh báo</label>
+            <label>Loại cảnh báo</label>
             <select id="wlAlertType">
               <option value="warning">⚠️ Cảnh báo</option>
               <option value="danger">🚨 Nguy hiểm</option>
@@ -220,8 +244,8 @@
             </select>
           </div>
           <div class="form-actions">
-            <button type="button" class="danger" onclick="closeModal()">Hủy bỏ</button>
-            <button type="submit" class="success">💾 Lưu lại</button>
+            <button type="button" onclick="closeModal()">Hủy</button>
+            <button type="submit" class="success">💾 Lưu</button>
           </div>
         </form>
       </div>
@@ -230,15 +254,15 @@
     <!-- MODAL: Edit Watchlist -->
     <div id="editWatchlistModal" class="modal">
       <div class="modal-content">
-        <h3>✏️ Chỉnh sửa Watchlist</h3>
-        <form id="editWatchlistForm" onsubmit="editWatchlistSubmit(event)">
+        <h3>✏️ Chỉnh sửa</h3>
+        <form onsubmit="editWatchlistSubmit(event)">
           <input type="hidden" id="editPlateNumber" />
           <div class="form-group">
-            <label for="editReason">Lý do</label>
+            <label>Lý do</label>
             <textarea id="editReason" rows="3"></textarea>
           </div>
           <div class="form-group">
-            <label for="editAlertType">Loại cảnh báo</label>
+            <label>Loại</label>
             <select id="editAlertType">
               <option value="warning">⚠️ Cảnh báo</option>
               <option value="danger">🚨 Nguy hiểm</option>
@@ -246,14 +270,21 @@
             </select>
           </div>
           <div class="form-actions">
-            <button type="button" class="danger" onclick="closeEditModal()">Hủy</button>
-            <button type="submit" class="success">💾 Cập nhật</button>
+            <button type="button" onclick="closeEditModal()">Hủy</button>
+            <button type="submit" class="success">💾 Lưu</button>
           </div>
         </form>
       </div>
     </div>
 
-    <!-- Link to JavaScript -->
     <script src="../static/js/app.js"></script>
+    <script>
+      // Auto load stats on page load
+      window.onload = () => {
+        loadStats();
+        loadDetections();
+        startStatusPolling();
+      };
+    </script>
   </body>
 </html>

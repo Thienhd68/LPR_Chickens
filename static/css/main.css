@@ -821,6 +821,222 @@ button.info {
     color: var(--bg-primary);
 }
 
+/* ==================== VIDEO VIEWPORT ==================== */
+.video-viewport {
+    width: 100%;
+    max-width: 1280px;
+    margin: 0 auto 20px;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 2px solid var(--border-color);
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    min-height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.video-viewport img {
+    width: 100%;
+    height: auto;
+    max-height: 720px;
+    object-fit: contain;
+    display: block;
+}
+
+.video-viewport::after {
+    content: 'No Camera Feed';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--text-muted);
+    font-size: 1.5em;
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* Camera Status Panel */
+.camera-status-panel {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+    margin-bottom: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.status-left {
+    flex: 1;
+    min-width: 300px;
+}
+
+.status-right {
+    display: flex;
+    gap: 10px;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-muted);
+}
+
+.status-dot.online {
+    background: var(--success);
+    animation: blink 1s infinite;
+}
+
+.status-dot.offline {
+    background: var(--text-muted);
+}
+
+.status-text {
+    font-weight: 700;
+    font-size: 1.2em;
+    color: var(--text-primary);
+}
+
+.status-info {
+    padding: 10px;
+    background: var(--bg-card);
+    border-radius: 8px;
+    border-left: 3px solid var(--accent-primary);
+}
+
+.status-info p {
+    margin: 5px 0;
+    color: var(--text-secondary);
+}
+
+.btn-large {
+    padding: 15px 30px;
+    font-size: 1.1em;
+}
+
+/* Camera Control Panel */
+.camera-control-panel {
+    background: var(--bg-card);
+    padding: 25px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+}
+
+.source-type-tabs {
+    display: flex;
+    gap: 10px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+}
+
+.source-tab {
+    padding: 12px 24px;
+    background: var(--bg-tertiary);
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: var(--transition);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.source-tab:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.source-tab.active {
+    background: var(--accent-primary);
+    color: var(--bg-primary);
+    border-color: var(--accent-primary);
+}
+
+.source-config-area {
+    margin-top: 20px;
+}
+
+.source-config {
+    display: none;
+    padding: 20px;
+    background: var(--bg-tertiary);
+    border-radius: 10px;
+}
+
+.source-config.active {
+    display: block;
+}
+
+.config-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+.detection-options {
+    margin-top: 20px;
+    padding: 20px;
+    background: var(--bg-tertiary);
+    border-radius: 10px;
+}
+
+.detection-options h4 {
+    color: var(--accent-primary);
+    margin-bottom: 15px;
+}
+
+.detection-options label {
+    display: block;
+    margin: 10px 0;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.detection-options input[type="checkbox"] {
+    margin-right: 10px;
+}
+
+.camera-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin: 10px 0;
+    background: var(--bg-card);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.camera-item strong {
+    color: var(--text-primary);
+}
+
+.camera-item span {
+    color: var(--text-secondary);
+    margin: 0 15px;
+}
+
+.live-indicator.online {
+    background: var(--success);
+    animation: pulse 2s infinite;
+}
+
+.live-indicator.offline {
+    background: var(--text-muted);
+}
+
 /* ==================== RESPONSIVE ==================== */
 @media (max-width: 1200px) {
     .stats-container {
@@ -937,4 +1153,108 @@ button.info {
         display: block !important;
         break-inside: avoid;
     }
+}
+
+* --- Control Panel Styles --- */
+.control-grid {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    background: var(--bg-tertiary);
+    padding: 20px;
+    border-radius: 12px;
+}
+
+.control-group {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+.status-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 20px;
+    border-radius: 30px;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.9em;
+    height: 48px;
+    transition: var(--transition);
+    border: 2px solid transparent;
+    white-space: nowrap;
+}
+
+.status-badge.stopped {
+    background: rgba(108, 117, 125, 0.1);
+    color: var(--text-muted);
+    border-color: var(--text-muted);
+}
+
+.status-badge.running {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success);
+    border-color: var(--success);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.status-badge.running .status-dot {
+    animation: blink 1s infinite;
+}
+
+/* --- Alert Overlay Animation --- */
+.alert-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(239, 68, 68, 0.3);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: fadeIn 0.2s ease;
+    pointer-events: none;
+}
+
+.alert-box-modal {
+    background: white;
+    padding: 40px;
+    border-radius: 20px;
+    text-align: center;
+    box-shadow: 0 0 50px rgba(255, 0, 0, 0.5);
+    border: 5px solid var(--danger);
+    transform: scale(1.2);
+}
+
+.alert-box-modal h1 {
+    color: var(--danger);
+    font-size: 3em;
+    margin: 0;
+}
+
+.alert-box-modal h2 {
+    font-size: 4em;
+    margin: 10px 0;
+    color: black;
+}
+
+.blink {
+    animation: blink 0.5s infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
 }
