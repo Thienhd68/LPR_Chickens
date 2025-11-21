@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>flow.html</title>
+        <style type="text/css">
+          .end-element { fill : #FFCCFF; }
+        </style>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/flowchart/1.17.1/flowchart.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.1/js/bootstrap.bundle.min.js"></script>
+        <!-- <script src="../release/flowchart.min.js"></script> -->
+        <script>
+
+            window.onload = function () {
+                var btn = document.getElementById("run"),
+                    cd = document.getElementById("code"),
+                    chart;
+                    
+                (btn.onclick = function () {
+                    var code = cd.value;
+
+                    if (chart) {
+                      chart.clean();
+                    }
+
+                    chart = flowchart.parse(code);
+                    chart.drawSVG('canvas', {
+                      'x': 0,
+                      'y': 0,
+                      'line-width': 3,
+                      //'maxWidth': 15,//ensures the flowcharts fits within a certain width
+                      'line-length': 50,
+                      'text-margin': 10,
+                      'font-size': 14,
+                      'font': 'normal',
+                      'font-family': 'Helvetica',
+                      'font-weight': 'normal',
+                      'font-color': 'black',
+                      'line-color': 'black',
+                      'element-color': 'black',
+                      'fill': 'white',
+                      'yes-text': 'yes',
+                      'no-text': 'no',
+                      'arrow-end': 'block',
+                      'scale': 1,
+                      'symbols': {
+                        'start': {
+                          'font-size': 14,
+                          'font-color': 'yellow',
+                          'element-color': 'blue',
+                          'fill': 'green',
+                          'class': 'start-element'
+                        },
+                        'inputoutput': {
+                          'font-color': 'black',
+                          'element-color': 'black',
+                          'fill': 'bisque'
+                        },
+                        'operation': {
+                          'font-color': 'black',
+                          'element-color': 'black',
+                          'fill': 'linen'
+                        },
+                        'subroutine': {
+                          'font-color': 'black',
+                          'element-color': 'blue',
+                          'fill': 'lightgreen'
+                        },
+                        'condition': {
+                          'font-color': 'red',
+                          'element-color': 'black',
+                          'fill': 'yellow'
+                        },
+                        'end':{
+                          'font-size': 20,
+                          'class': 'end-element'
+                        }
+                      },
+                      'flowstate' : {
+                        //'past' : { 'fill' : '#CCCCCC', 'font-size' : 12},
+                        //'current' : {'fill' : 'yellow', 'font-color' : 'red', 'font-weight' : 'bold'},
+                        //'future' : { 'fill' : '#FFFF99'},
+                        'request' : { 'fill' : 'blue'},
+                        'invalid': {'fill' : '#444444'},
+                        'approved' : { 'fill' : '#58C4A3', 'font-size' : 12, 'yes-text' : 'APPROVED', 'no-text' : 'n/a' },
+                        'rejected' : { 'fill' : '#C45879', 'font-size' : 12, 'yes-text' : 'n/a', 'no-text' : 'REJECTED' }
+                      }
+                    });
+                    //create base64 encoding of SVG to generate download link for title(without html or htm).SVG
+                    var currentCanvasDIV = document.getElementById('canvas')
+                    var currentDrawSVG = currentCanvasDIV.innerHTML.replaceAll('ë','e');
+
+                    const OUTsvgBASE64 = btoa(currentDrawSVG)
+                    doctitle = document.title.replace('.html','');
+                    doctitle = doctitle.replace('.htm','');
+
+
+                    var currentCanvasDIV = document.getElementById('canvas')
+                    var currentDrawSVG = currentCanvasDIV.innerHTML.replaceAll('ë','e');
+                    svgSource = currentDrawSVG
+                    svgXML = currentDrawSVG;
+                    // Use SVG Height and Width from the SVG XML to set canvas size
+                    svgXMLsubstringHeight = svgXML.substring(svgXML.indexOf('height='), svgXML.indexOf('version='));
+                    svgXMLsubstringWidth = svgXML.substring(svgXML.indexOf('width='), svgXML.indexOf('xmlns='));
+                    HeightValue = svgXMLsubstringHeight.substring(svgXMLsubstringHeight.indexOf('"')+1,svgXMLsubstringHeight.lastIndexOf('"'));
+                    WidthValue = svgXMLsubstringWidth.substring(svgXMLsubstringWidth.indexOf('"')+1,svgXMLsubstringWidth.lastIndexOf('"'));
+                    HeightValueInt = Math.round(HeightValue)
+                    WidthValueInt = Math.round(WidthValue)
+                    // setup input for base64SvgToBase64Png
+                    let svgSrc = "data:image/svg+xml;base64,"+OUTsvgBASE64;
+                    var pngBase
+                    imageUtil.base64SvgToBase64Png(svgSrc, WidthValueInt, HeightValueInt).then(pngSrc => {
+                    pngBase = pngSrc
+                    // output download link for base64 PNG converted on download from base64
+                    var pngOutHtml = `<a href="${pngBase}" download="${doctitle}.png">PNG - Click here to download current rendered flowchart as ${doctitle}.png</a>`
+                    document.getElementById("pngbase64").innerHTML=pngOutHtml;
+                    });    
+                    // output download link for base64 SVG converted on download from base64
+                    var svgOutHtml = `<a href="data:image/svg+xml;base64,${OUTsvgBASE64}" download=${doctitle}.svg>SVG - Click here to download current rendered flowchart as ${doctitle}.svg</a> `
+                        document.getElementById("svgbase64").innerHTML=svgOutHtml;
+                    })();
+
+                            };
+                 
+
+// derived from https://stackoverflow.com/a/64800570
+// we need to use web browser canvas to generate a image. In this case png
+let imageUtil = {};
+/**
+ * converts a base64 encoded data url SVG image to a PNG image
+ * @param originalBase64 data url of svg image
+ * @param width target width in pixel of PNG image
+ * @param secondTry used internally to prevent endless recursion
+ * @return {Promise<unknown>} resolves to png data url of the image
+ */
+imageUtil.base64SvgToBase64Png = function (originalBase64, width, height, secondTry) {
+    return new Promise(resolve => {
+        let img = document.createElement('img');
+        img.onload = function () {
+            if (!secondTry && (img.naturalWidth === 0 || img.naturalHeight === 0)) {
+                let svgDoc = base64ToSvgDocument(originalBase64);
+                let fixedDoc = fixSvgDocumentFF(svgDoc);
+                return imageUtil.base64SvgToBase64Png(svgDocumentToBase64(fixedDoc), width, height, true).then(result => {
+                    resolve(result);
+                });
+            }
+            //document.body.appendChild(img);
+            let canvas2 = document.createElement("canvas");
+            //document.body.removeChild(img);
+            canvas2.width = width;
+            canvas2.height = height;
+            let ctx = canvas2.getContext("2d");
+            ctx.drawImage(img, 0, 0, canvas2.width, canvas2.height);
+            try {
+                let data = canvas2.toDataURL('image/png');
+                resolve(data);
+            } catch (e) {
+                resolve(null);
+            }
+        };
+        img.src = originalBase64;
+    });
+}
+
+//needed because Firefox doesn't correctly handle SVG with size = 0, see https://bugzilla.mozilla.org/show_bug.cgi?id=700533
+function fixSvgDocumentFF(svgDocument) {
+    try {
+        let widthInt = parseInt(svgDocument.documentElement.width.baseVal.value) || 500;
+        let heightInt = parseInt(svgDocument.documentElement.height.baseVal.value) || 500;
+        svgDocument.documentElement.width.baseVal.newValueSpecifiedUnits(SVGLength.SVG_LENGTHTYPE_PX, widthInt);
+        svgDocument.documentElement.height.baseVal.newValueSpecifiedUnits(SVGLength.SVG_LENGTHTYPE_PX, heightInt);
+        return svgDocument;
+    } catch (e) {
+        return svgDocument;
+    }
+}
+
+function svgDocumentToBase64(svgDocument) {
+    try {
+        let base64EncodedSVG = btoa(new XMLSerializer().serializeToString(svgDocument));
+        return 'data:image/svg+xml;base64,' + base64EncodedSVG;
+    } catch (e) {
+        return null;
+    }
+}
+
+function base64ToSvgDocument(base64) {
+    let svg = atob(base64.substring(base64.indexOf('base64,') + 7));
+    svg = svg.substring(svg.indexOf('<svg'));
+    let parser = new DOMParser();
+    return parser.parseFromString(svg, "image/svg+xml");
+} 
+        </script>
+
+        <script>
+            function HelpText() {
+              var x = document.getElementById("HelpTextBlock");
+              if (x.style.display === "none") {
+                x.style.display = "block";
+              } else {
+                x.style.display = "none";
+              }
+            }
+        </script>
+    </head>
+    <body>
+        <div><textarea id="code" style="width: 100%;" rows="11">op2=>operation: from PIL import Image
+op4=>operation: import cv2
+op6=>operation: import torch
+op8=>operation: import math
+op10=>operation: import function.utils_rotate as utils_rotate
+op12=>operation: import function.helper as helper
+op14=>operation: import time
+op16=>operation: import os
+op18=>operation: import argparse
+op20=>operation: from database_manager import AdvancedLicensePlateDB
+op22=>operation: parser = argparse.ArgumentParser(description='Advanced License Plate Detection')
+sub24=>subroutine: parser.add_argument('--source', type=str, default='0', help='Nguồn video')
+sub26=>subroutine: parser.add_argument('--save', action='store_true', help='Lưu video output')
+sub28=>subroutine: parser.add_argument('--save-crops', action='store_true', help='Lưu ảnh biển số')
+sub30=>subroutine: parser.add_argument('--watchlist', type=str, help='File watchlist (1 biển số/dòng)')
+op32=>operation: args = parser.parse_args()
+op34=>operation: db = AdvancedLicensePlateDB()
+cond37=>condition: if args.save_crops
+sub41=>subroutine: os.makedirs('detected_plates', exist_ok=True)
+sub43=>subroutine: print("📁 Thư mục 'detected_plates' đã sẵn sàng")
+cond49=>condition: if (args.watchlist and os.path.exists(args.watchlist))
+sub53=>subroutine: print(f'📋 Đang tải watchlist từ {args.watchlist}...')
+op55=>operation: with open(args.watchlist, 'r', encoding='utf-8') as f:
+    for line in f:
+        plate = line.strip()
+        if plate:
+            (success, _) = db.add_to_watchlist(plate, 'Từ file watchlist', 'warning')
+            if success:
+                print(f'   ✅ Đã thêm: {plate}')
+sub60=>subroutine: print('⏳ Đang tải models...')
+op62=>operation: yolo_LP_detect = torch.hub.load('yolov5', 'custom', path='model/LP_detector.pt', force_reload=True, source='local')
+op64=>operation: yolo_license_plate = torch.hub.load('yolov5', 'custom', path='model/LP_ocr_nano_62.pt', force_reload=True, source='local')
+op66=>operation: yolo_license_plate.conf = 0.5
+sub68=>subroutine: print('✅ Models đã tải xong!')
+op70=>operation: source = (int(args.source) if args.source.isdigit() else args.source)
+op72=>operation: cap = cv2.VideoCapture(source)
+cond75=>condition: if (not cap.isOpened())
+sub79=>subroutine: print(f'❌ Không mở được nguồn: {source}')
+sub81=>subroutine: exit()
+cond87=>condition: if isinstance(source, int)
+sub91=>subroutine: cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+sub93=>subroutine: cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+sub95=>subroutine: print(f'📹 Đang sử dụng Camera {source}')
+op102=>operation: out = None
+cond105=>condition: if args.save
+op109=>operation: frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+op111=>operation: frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+op113=>operation: fps = (int(cap.get(cv2.CAP_PROP_FPS)) or 20)
+op115=>operation: fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+op117=>operation: output_path = f"output_{time.strftime('%Y%m%d_%H%M%S')}.mp4"
+op119=>operation: out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
+sub121=>subroutine: print(f'💾 Sẽ lưu video vào: {output_path}')
+op126=>operation: prev_frame_time = 0
+op128=>operation: new_frame_time = 0
+op130=>operation: frame_count = 0
+op132=>operation: detected_plates_history = {}
+op134=>operation: DETECTION_COOLDOWN = 30
+op136=>operation: alert_sound_enabled = True
+op138=>operation: alert_frames = {}
+sub140=>subroutine: print('\n🚀 Bắt đầu xử lý...')
+sub142=>subroutine: print("⌨️  Nhấn 'q' để thoát")
+sub144=>subroutine: print("⌨️  Nhấn 'p' để tạm dừng/tiếp tục")
+sub146=>subroutine: print("⌨️  Nhấn 's' để chụp ảnh màn hình")
+sub148=>subroutine: print("⌨️  Nhấn 'd' để xem danh sách 10 biển số gần nhất")
+sub150=>subroutine: print("⌨️  Nhấn 'w' để xem watchlist")
+sub152=>subroutine: print("⌨️  Nhấn 'a' để thêm biển số vào watchlist")
+sub154=>subroutine: print("⌨️  Nhấn 'm' để bật/tắt âm thanh cảnh báo\n")
+op156=>operation: paused = False
+cond159=>condition: while True
+cond1383=>condition: if (not paused)
+op1387=>operation: (ret, frame) = cap.read()
+cond1390=>condition: if (not ret)
+sub1394=>subroutine: print('✅ Video đã kết thúc hoặc lỗi đọc frame.')
+sub1396=>subroutine: break
+op1401=>operation: frame_count += 1
+op1403=>operation: plates = yolo_LP_detect(frame, size=960)
+op1405=>operation: list_plates = plates.pandas().xyxy[0].values.tolist()
+op1407=>operation: detected_plates = []
+op1409=>operation: current_alerts = []
+cond1412=>condition: for plate in list_plates
+op1875=>operation: flag = 0
+op1877=>operation: x = int(plate[0])
+op1879=>operation: y = int(plate[1])
+op1881=>operation: w = int((plate[2] - plate[0]))
+op1883=>operation: h = int((plate[3] - plate[1]))
+op1885=>operation: confidence = plate[4]
+op1887=>operation: crop_img = frame[(y:(y + h), x:(x + w))]
+op1889=>operation: lp = ''
+cond1892=>condition: for cc in range(0, 2)
+cond2115=>condition: for ct in range(0, 2)
+op2219=>operation: lp = helper.read_plate(yolo_license_plate, utils_rotate.deskew(crop_img, cc, ct))
+cond2222=>condition: if (lp != 'unknown')
+sub2226=>subroutine: detected_plates.append(lp)
+op2228=>operation: (is_watchlist, watchlist_info) = db.check_watchlist(lp)
+op2230=>operation: box_color = ((0, 0, 255) if is_watchlist else (0, 255, 0))
+sub2232=>subroutine: cv2.rectangle(frame, (x, y), ((x + w), (y + h)), box_color, 3)
+op2234=>operation: should_save = False
+cond2237=>condition: if (lp not in detected_plates_history)
+op2241=>operation: should_save = True
+cond2258=>condition: if should_save
+op2262=>operation: image_path = None
+cond2265=>condition: if args.save_crops
+op2269=>operation: crop_filename = f"detected_plates/{lp}_{time.strftime('%Y%m%d_%H%M%S')}.jpg"
+sub2271=>subroutine: cv2.imwrite(crop_filename, crop_img)
+op2273=>operation: image_path = crop_filename
+op2278=>operation: (plate_id, triggered_alert) = db.save_plate(lp, frame_count, confidence, image_path, str(source))
+op2280=>operation: detected_plates_history[lp] = frame_count
+cond2283=>condition: if triggered_alert
+sub2287=>subroutine: print(f'🚨 CẢNH BÁO: Phát hiện biển số trong watchlist: {lp}')
+sub2289=>subroutine: current_alerts.append({'plate': lp, 'reason': watchlist_info['reason'], 'type': watchlist_info['alert_type']})
+op2291=>operation: alert_frames[lp] = (frame_count + 100)
+op2301=>operation: text_bg_color = ((0, 0, 255) if is_watchlist else (0, 255, 0))
+op2303=>operation: text_size = cv2.getTextSize(lp, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)[0]
+sub2305=>subroutine: cv2.rectangle(frame, (x, (y - 35)), (((x + text_size[0]) + 10), y), text_bg_color, (- 1))
+op2307=>operation: display_text = (f'⚠️ {lp}' if is_watchlist else lp)
+sub2309=>subroutine: cv2.putText(frame, display_text, (x, (y - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
+op2311=>operation: flag = 1
+sub2313=>subroutine: break
+sub2295=>subroutine: print(f'💾 Đã lưu biển số: {lp} (ID: {plate_id})')
+cond2246=>operation: should_save = True if  ((frame_count - detected_plates_history[lp]) > DETECTION_COOLDOWN)
+cond2321=>operation: break if  (flag == 1)
+op2335=>operation: new_frame_time = time.time()
+op2337=>operation: fps = int((1 / ((new_frame_time - prev_frame_time) + 1e-06)))
+op2339=>operation: prev_frame_time = new_frame_time
+op2341=>operation: info_bg = frame.copy()
+sub2343=>subroutine: cv2.rectangle(info_bg, (5, 5), (350, 180), (0, 0, 0), (- 1))
+op2345=>operation: frame = cv2.addWeighted(frame, 0.7, info_bg, 0.3, 0)
+sub2347=>subroutine: cv2.putText(frame, f'FPS: {fps}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+sub2349=>subroutine: cv2.putText(frame, f'Frame: {frame_count}', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+sub2351=>subroutine: cv2.putText(frame, f'Detected: {len(detected_plates)}', (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+sub2353=>subroutine: cv2.putText(frame, f'Total DB: {db.get_total_count()}', (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+op2355=>operation: watchlist_count = db.get_statistics()['watchlist_count']
+sub2357=>subroutine: cv2.putText(frame, f'Watchlist: {watchlist_count}', (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+op2359=>operation: alert_y = 220
+cond2362=>condition: for (plate, end_frame) in list(alert_frames.items())
+cond2384=>condition: if (frame_count < end_frame)
+sub2388=>subroutine: cv2.rectangle(frame, (0, (alert_y - 30)), (frame.shape[1], (alert_y + 10)), (0, 0, 255), (- 1))
+sub2390=>subroutine: cv2.putText(frame, f'!!! CANH BAO: {plate} trong danh sach theo doi !!!', (20, alert_y), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 3)
+op2392=>operation: alert_y += 50
+op2396=>operation: del alert_frames[plate]
+cond2402=>operation: out.write(frame) if  (out is not None)
+op2415=>operation: display_frame = frame.copy()
+cond2418=>operation: cv2.putText(display_frame, "PAUSED - Press 'p' to continue", (((frame.shape[1] // 2) - 250), (frame.shape[0] // 2)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3) if  paused
+op2428=>operation: (max_width, max_height) = (1280, 720)
+op2430=>operation: (h, w) = display_frame.shape[:2]
+op2432=>operation: scale = min((max_width / w), (max_height / h))
+op2434=>operation: resized_frame = cv2.resize(display_frame, (int((w * scale)), int((h * scale))))
+sub2436=>subroutine: cv2.imshow('Advanced License Plate Detection', resized_frame)
+op2438=>operation: key = (cv2.waitKey(1) & 255)
+cond2441=>condition: if (key == ord('q'))
+sub2445=>subroutine: print('\n🛑 Dừng chương trình...')
+sub2447=>subroutine: break
+cond2452=>condition: if (key == ord('p'))
+op2456=>operation: paused = (not paused)
+sub2458=>subroutine: print(('⏸️  Tạm dừng' if paused else '▶️  Tiếp tục'))
+cond2463=>condition: if (key == ord('s'))
+op2467=>operation: screenshot_path = f"screenshot_{time.strftime('%Y%m%d_%H%M%S')}.jpg"
+sub2469=>subroutine: cv2.imwrite(screenshot_path, frame)
+sub2471=>subroutine: print(f'📸 Đã lưu ảnh: {screenshot_path}')
+cond2476=>condition: if (key == ord('d'))
+sub2480=>subroutine: print(('\n' + ('=' * 60)))
+sub2482=>subroutine: print('📋 10 BIỂN SỐ GẦN NHẤT:')
+op2484=>operation: recent = db.get_recent_plates(10)
+cond2487=>condition: for (i, plate_data) in enumerate(recent, 1)
+op2496=>operation: alert_icon = ('🚨' if plate_data['is_watchlist'] else '  ')
+sub2498=>subroutine: print(f"{i}. {alert_icon} {plate_data['plate_number']} - {plate_data['timestamp']} (Frame: {plate_data['frame_number']})")
+sub2502=>subroutine: print((('=' * 60) + '\n'))
+cond2507=>condition: if (key == ord('w'))
+sub2511=>subroutine: print(('\n' + ('=' * 60)))
+sub2513=>subroutine: print('👁️  DANH SÁCH WATCHLIST:')
+op2515=>operation: watchlist = db.get_watchlist()
+cond2518=>condition: if watchlist
+cond2523=>condition: for (i, item) in enumerate(watchlist, 1)
+sub2532=>subroutine: print(f"{i}. {item['plate_number']} - {item['reason']}")
+sub2534=>subroutine: print(f"   Thêm lúc: {item['added_date']}, Phát hiện: {item['detection_count']} lần")
+sub2543=>subroutine: print((('=' * 60) + '\n'))
+sub2540=>subroutine: print('   (Trống)')
+cond2548=>condition: if (key == ord('a'))
+sub2552=>subroutine: print('\n➕ THÊM BIỂN SỐ VÀO WATCHLIST:')
+op2554=>operation: plate_input = input('Nhập biển số: ').strip()
+cond2557=>condition: if plate_input
+op2561=>operation: reason_input = (input('Lý do (tùy chọn): ').strip() or 'Thêm thủ công')
+op2563=>operation: (success, result) = db.add_to_watchlist(plate_input, reason_input, 'warning')
+cond2566=>condition: if success
+sub2570=>subroutine: print(f'✅ Đã thêm {plate_input} vào watchlist')
+sub2574=>subroutine: print(f'❌ {result}')
+cond2583=>condition: if (key == ord('m'))
+op2587=>operation: alert_sound_enabled = (not alert_sound_enabled)
+sub2589=>subroutine: print(f"🔔 Âm thanh cảnh báo: {('BẬT' if alert_sound_enabled else 'TẮT')}")
+sub2602=>subroutine: cap.release()
+cond2605=>condition: if (out is not None)
+sub2609=>subroutine: out.release()
+sub2611=>subroutine: print(f'✅ Đã lưu video output!')
+sub2616=>subroutine: cv2.destroyAllWindows()
+op2618=>operation: stats = db.get_statistics()
+sub2620=>subroutine: print(f'''
+📊 THỐNG KÊ:''')
+sub2622=>subroutine: print(f"   - Tổng số phát hiện: {stats['total']}")
+sub2624=>subroutine: print(f"   - Biển số độc nhất: {stats['unique']}")
+sub2626=>subroutine: print(f"   - Trong watchlist: {stats['watchlist_count']}")
+sub2628=>subroutine: print(f"   - Cảnh báo chưa xử lý: {stats['alerts_pending']}")
+sub2630=>subroutine: print(f'   - Tổng số frame: {frame_count}')
+sub2632=>subroutine: print('👋 Chương trình kết thúc!')
+sub99=>subroutine: print(f'🎥 Đang xử lý video: {source}')
+
+op2->op4
+op4->op6
+op6->op8
+op8->op10
+op10->op12
+op12->op14
+op14->op16
+op16->op18
+op18->op20
+op20->op22
+op22->sub24
+sub24->sub26
+sub26->sub28
+sub28->sub30
+sub30->op32
+op32->op34
+op34->cond37
+cond37(yes)->sub41
+sub41->sub43
+sub43->cond49
+cond49(yes)->sub53
+sub53->op55
+op55->sub60
+sub60->op62
+op62->op64
+op64->op66
+op66->sub68
+sub68->op70
+op70->op72
+op72->cond75
+cond75(yes)->sub79
+sub79->sub81
+sub81->cond87
+cond87(yes)->sub91
+sub91->sub93
+sub93->sub95
+sub95->op102
+op102->cond105
+cond105(yes)->op109
+op109->op111
+op111->op113
+op113->op115
+op115->op117
+op117->op119
+op119->sub121
+sub121->op126
+op126->op128
+op128->op130
+op130->op132
+op132->op134
+op134->op136
+op136->op138
+op138->sub140
+sub140->sub142
+sub142->sub144
+sub144->sub146
+sub146->sub148
+sub148->sub150
+sub150->sub152
+sub152->sub154
+sub154->op156
+op156->cond159
+cond159(yes)->cond1383
+cond1383(yes)->op1387
+op1387->cond1390
+cond1390(yes)->sub1394
+sub1394->sub1396
+cond1390(no)->op1401
+op1401->op1403
+op1403->op1405
+op1405->op1407
+op1407->op1409
+op1409->cond1412
+cond1412(yes)->op1875
+op1875->op1877
+op1877->op1879
+op1879->op1881
+op1881->op1883
+op1883->op1885
+op1885->op1887
+op1887->op1889
+op1889->cond1892
+cond1892(yes)->cond2115
+cond2115(yes)->op2219
+op2219->cond2222
+cond2222(yes)->sub2226
+sub2226->op2228
+op2228->op2230
+op2230->sub2232
+sub2232->op2234
+op2234->cond2237
+cond2237(yes)->op2241
+op2241->cond2258
+cond2258(yes)->op2262
+op2262->cond2265
+cond2265(yes)->op2269
+op2269->sub2271
+sub2271->op2273
+op2273->op2278
+op2278->op2280
+op2280->cond2283
+cond2283(yes)->sub2287
+sub2287->sub2289
+sub2289->op2291
+op2291->op2301
+op2301->op2303
+op2303->sub2305
+sub2305->op2307
+op2307->sub2309
+sub2309->op2311
+op2311->sub2313
+cond2283(no)->sub2295
+sub2295->op2301
+cond2265(no)->op2278
+cond2258(no)->op2301
+cond2237(no)->cond2246
+cond2246->cond2258
+cond2222(no)->cond2115
+cond2115(no)->cond2321
+cond2321->cond1892
+cond1892(no)->cond1412
+cond1412(no)->op2335
+op2335->op2337
+op2337->op2339
+op2339->op2341
+op2341->sub2343
+sub2343->op2345
+op2345->sub2347
+sub2347->sub2349
+sub2349->sub2351
+sub2351->sub2353
+sub2353->op2355
+op2355->sub2357
+sub2357->op2359
+op2359->cond2362
+cond2362(yes)->cond2384
+cond2384(yes)->sub2388
+sub2388->sub2390
+sub2390->op2392
+op2392->cond2362
+cond2384(no)->op2396
+op2396->cond2362
+cond2362(no)->cond2402
+cond2402->op2415
+op2415->cond2418
+cond2418->op2428
+op2428->op2430
+op2430->op2432
+op2432->op2434
+op2434->sub2436
+sub2436->op2438
+op2438->cond2441
+cond2441(yes)->sub2445
+sub2445->sub2447
+cond2441(no)->cond2452
+cond2452(yes)->op2456
+op2456->sub2458
+sub2458->cond159
+cond2452(no)->cond2463
+cond2463(yes)->op2467
+op2467->sub2469
+sub2469->sub2471
+sub2471->cond159
+cond2463(no)->cond2476
+cond2476(yes)->sub2480
+sub2480->sub2482
+sub2482->op2484
+op2484->cond2487
+cond2487(yes)->op2496
+op2496->sub2498
+sub2498(left)->cond2487
+cond2487(no)->sub2502
+sub2502->cond159
+cond2476(no)->cond2507
+cond2507(yes)->sub2511
+sub2511->sub2513
+sub2513->op2515
+op2515->cond2518
+cond2518(yes)->cond2523
+cond2523(yes)->sub2532
+sub2532->sub2534
+sub2534(left)->cond2523
+cond2523(no)->sub2543
+sub2543->cond159
+cond2518(no)->sub2540
+sub2540->sub2543
+cond2507(no)->cond2548
+cond2548(yes)->sub2552
+sub2552->op2554
+op2554->cond2557
+cond2557(yes)->op2561
+op2561->op2563
+op2563->cond2566
+cond2566(yes)->sub2570
+sub2570->cond159
+cond2566(no)->sub2574
+sub2574->cond159
+cond2557(no)->cond159
+cond2548(no)->cond2583
+cond2583(yes)->op2587
+op2587->sub2589
+sub2589->cond159
+cond2583(no)->cond159
+cond1383(no)->op2415
+cond159(no)->sub2602
+sub2602->cond2605
+cond2605(yes)->sub2609
+sub2609->sub2611
+sub2611->sub2616
+sub2616->op2618
+op2618->sub2620
+sub2620->sub2622
+sub2622->sub2624
+sub2624->sub2626
+sub2626->sub2628
+sub2628->sub2630
+sub2630->sub2632
+cond2605(no)->sub2616
+cond105(no)->op126
+cond87(no)->sub99
+sub99->op102
+cond75(no)->cond87
+cond49(no)->sub60
+cond37(no)->cond49
+</textarea></div>
+        <div><button id="run" type="button">Run</button> <button onclick="HelpText()">Format Help</button></div>
+        <div id="HelpTextBlock" style="display:none"><br/>Conditions can also be redirected like cond(yes, bottom) or cond(yes, right)
+... and the other symbols too... like sub1(right)<br/>
+You can also tweak the <b>diagram.drawSVG('diagram', {});</b> script in this file for more changes<br/>
+This is based on <a href="https://github.com/adrai/flowchart.js">flowchart.js on github</a> and <a href="http://flowchart.js.org">http://flowchart.js.org</a> more documentation can be found over there.
+</div><br/><div id="svgbase64"></div>
+        <div id="pngbase64"></div>
+
+        <div id="canvas"></div>
+    </body>
+</html>
