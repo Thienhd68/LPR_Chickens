@@ -1,0 +1,9 @@
+{
+  "running": false,
+  "source_type": "webcam",
+  "source_value": "0",
+  "start_time": "2025-11-24T22:34:01.811688",
+  "frames_processed": 549,
+  "detections_count": 17,
+  "last_update": "2025-11-24T22:35:18.825116"
+}
